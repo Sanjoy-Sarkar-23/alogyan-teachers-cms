@@ -1,0 +1,960 @@
+# Alogyan — Firestore Schema Design
+
+> **Database**: Firebase Firestore (NoSQL Document Store)  
+> **Multi-tenancy**: `teacherId` field on every document (row-level isolation)  
+> **Naming**: Collections = `camelCase`, Fields = `camelCase`
+
+---
+
+## Design Principles
+
+| Principle | Application |
+|-----------|-------------|
+| **No JOINs** | Denormalize read-frequent names (studentName, batchName) into child docs |
+| **Query-first** | Schema shaped by UI queries, not normalization theory |
+| **teacherId on everything** | Single field enables multi-tenant security rules |
+| **Counters as fields** | `currentSeats`, `totalStudents` stored on parent, not counted at query time |
+| **Composite key IDs** | `attendance` uses `{batchId}_{YYYY-MM-DD}` to enable direct lookup |
+| **Soft deletes** | `isArchived: true` instead of deletion — preserve fee and attendance history |
+
+---
+
+## Multi-Tenant Structure
+
+```
+Every collection document MUST have:
+  teacherId: string   ← The owning teacher's Firebase UID
+
+All queries MUST always filter by teacherId FIRST:
+  db.collection('students').where('teacherId', '==', uid).where(...)
+  
+API layer enforces this: teacherId extracted from verified Firebase token,
+never from request body.
+```
+
+---
+
+## Collection: `teachers`
+
+The root entity. One document per registered teacher.
+
+```typescript
+interface Teacher {
+  // Identity
+  id: string;                    // Firebase UID (document ID)
+  name: string;                  // "Rajesh Sharma"
+  email: string;
+  phone: string;                 // "+919876543210"
+  photoUrl?: string;             // Firebase Storage URL
+
+  // Public Profile
+  slug: string;                  // "rajesh-sharma-delhi" (unique, URL-safe)
+  bio?: string;                  // 500 chars max
+  subjects: string[];            // ["Mathematics", "Physics"]
+  location: string;              // "Delhi, India"
+  experience?: number;           // Years (optional)
+  qualifications?: string[];     // ["B.Sc Math", "B.Ed"]
+  languages?: string[];          // ["Hindi", "English"]
+  
+  // Discovery
+  isPublic: boolean;             // Show on public search
+  isVerified: boolean;           // Admin-verified badge
+  rating?: number;               // 1.0–5.0 (future)
+  reviewCount?: number;          // Denormalized count
+
+  // Plan & Billing
+  plan: 'free' | 'pro' | 'enterprise';
+  planExpiresAt?: Timestamp;
+
+  // Stats (denormalized counters — updated on write)
+  totalStudents: number;         // Active enrolled students
+  totalBatches: number;          // Active batches
+
+  // System
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  lastActiveAt?: Timestamp;
+}
+```
+
+**Document ID**: Firebase Auth UID  
+**Indexes needed**: `slug` (single field, for public profile lookup)
+
+---
+
+## Collection: `students`
+
+One document per student. Scoped to a teacher.
+
+```typescript
+interface Student {
+  id: string;                    // Auto-generated Firestore ID
+  teacherId: string;             // Owner (for multi-tenancy)
+
+  // Identity
+  name: string;
+  phone: string;                 // Student's phone (WhatsApp capable)
+  parentPhone?: string;          // Guardian's phone
+  email?: string;
+
+  // Academics
+  grade?: string;                // "Class 10", "JEE Dropper", "Grade 5"
+  school?: string;
+
+  // Location
+  address?: string;
+  city?: string;
+
+  // Status
+  isArchived: boolean;           // Soft delete — default: false
+  archivedAt?: Timestamp;
+
+  // Metadata (denormalized for fast filters)
+  activeBatchIds: string[];      // Currently enrolled batch IDs
+  
+  // System
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+students:
+  - [teacherId ASC, isArchived ASC, createdAt DESC]   # List all active students
+  - [teacherId ASC, isArchived ASC, name ASC]          # Alphabetical list
+  - [teacherId ASC, activeBatchIds ARRAY_CONTAINS]     # Students in a batch (via array)
+```
+
+> **Why `activeBatchIds` array?** Avoids expensive cross-collection query. Updated on enrollment/unenrollment.
+
+---
+
+## Collection: `batches`
+
+A batch = one course/class a teacher runs (e.g., "JEE Maths Batch 2024").
+
+```typescript
+interface Batch {
+  id: string;
+  teacherId: string;
+
+  // Info
+  name: string;                  // "JEE Physics Morning Batch"
+  subject: string;               // "Physics"
+  description?: string;
+
+  // Schedule
+  schedule: {
+    days: Array<'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'>;
+    startTime: string;           // "09:00" (24-hr, local)
+    endTime: string;             // "10:30"
+    timezone: string;            // "Asia/Kolkata"
+  };
+
+  // Fees
+  feesPerMonth: number;          // INR, e.g. 2500
+  feesDueDay: number;            // Day of month, e.g. 5 (due by 5th)
+
+  // Capacity
+  maxSeats: number;
+  currentSeats: number;          // Denormalized counter
+
+  // Status
+  status: 'active' | 'paused' | 'closed';
+  term?: string;                 // "2024-Q1" or "Jan 2024"
+
+  // System
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+batches:
+  - [teacherId ASC, status ASC, createdAt DESC]   # Active batches list
+  - [teacherId ASC, subject ASC]                   # Filter by subject
+```
+
+---
+
+## Collection: `enrollments`
+
+Junction table: Student ↔ Batch (many-to-many).  
+Preserved even after student leaves (for fee history continuity).
+
+```typescript
+interface Enrollment {
+  id: string;
+  teacherId: string;
+
+  studentId: string;
+  batchId: string;
+
+  // Denormalized for display (avoids extra reads)
+  studentName: string;
+  batchName: string;
+
+  // Dates
+  enrolledAt: Timestamp;
+  leftAt?: Timestamp;            // Null = still active
+
+  // Status
+  isActive: boolean;
+
+  // System
+  createdAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+enrollments:
+  - [teacherId ASC, batchId ASC, isActive ASC]           # Students in a batch
+  - [teacherId ASC, studentId ASC, isActive ASC]         # Batches a student is in
+  - [teacherId ASC, batchId ASC, enrolledAt DESC]        # Audit timeline
+```
+
+---
+
+## Collection: `attendance`
+
+**Document ID pattern**: `{batchId}_{YYYY-MM-DD}` — one doc per batch per day.  
+This enables O(1) lookup with `db.doc('attendance/{batchId}_{date}').get()`.
+
+```typescript
+interface AttendanceRecord {
+  id: string;                    // "{batchId}_{YYYY-MM-DD}"
+  teacherId: string;
+  batchId: string;
+  date: string;                  // "2024-03-15" (YYYY-MM-DD)
+  
+  // Month for range queries
+  month: string;                 // "2024-03" (YYYY-MM)
+
+  // The core: one entry per enrolled student
+  records: {
+    [studentId: string]: 'present' | 'absent' | 'leave' | 'holiday';
+  };
+
+  // Denormalized counts for fast summary
+  presentCount: number;
+  absentCount: number;
+  totalStudents: number;
+
+  // Metadata
+  isHoliday: boolean;            // Entire day marked holiday
+  holidayReason?: string;
+  markedBy: string;              // teacherId
+  markedAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+attendance:
+  - [teacherId ASC, batchId ASC, date DESC]              # Batch attendance history
+  - [teacherId ASC, batchId ASC, month ASC]              # Monthly view for a batch
+```
+
+> **Why `month` field?** Firestore can't range-filter on a substring of `date`. The `month` field enables: `where('month', '==', '2024-03')`.
+
+---
+
+## Collection: `feeRecords`
+
+One record per student per month per batch.  
+Fee is generated in bulk by teacher for all enrolled students.
+
+```typescript
+interface FeeRecord {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  batchId: string;
+
+  // Denormalized for display
+  studentName: string;
+  batchName: string;
+
+  // Fee details
+  amount: number;                // Total fee for the month (INR)
+  month: string;                 // "2024-03" (billing month)
+  dueDate: Timestamp;            // Actual due date
+
+  // Payment status
+  status: 'pending' | 'partial' | 'paid' | 'waived' | 'overdue';
+  
+  // Payment tracking
+  paidAmount: number;            // 0 by default, updated on payment
+  balanceAmount: number;         // amount - paidAmount (denormalized)
+  
+  // Last payment reference
+  lastPaymentId?: string;        // points to payments/{id}
+  lastPaymentAt?: Timestamp;
+
+  // Notes
+  memo?: string;                 // Teacher's note
+
+  // System
+  generatedAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+feeRecords:
+  - [teacherId ASC, status ASC, dueDate ASC]             # Overdue / pending view
+  - [teacherId ASC, studentId ASC, month DESC]           # Student fee history
+  - [teacherId ASC, batchId ASC, month ASC]              # Batch fee report
+  - [teacherId ASC, month ASC, status ASC]               # Monthly collection report
+```
+
+---
+
+## Collection: `payments`
+
+Each payment event (a student pays, partially or fully).  
+Separate from feeRecords — one feeRecord can have multiple payments.
+
+```typescript
+interface Payment {
+  id: string;
+  teacherId: string;
+  feeRecordId: string;           // Link to parent fee record
+  studentId: string;
+  batchId: string;
+
+  // Denormalized
+  studentName: string;
+  month: string;                 // "2024-03"
+
+  // Payment info
+  amount: number;                // Amount paid in this transaction
+  mode: 'cash' | 'upi' | 'cheque' | 'bank_transfer' | 'other';
+  
+  // Mode-specific details
+  upiTransactionId?: string;
+  chequeNumber?: string;
+  chequeDate?: string;
+  bankRef?: string;
+  notes?: string;
+
+  // Who recorded
+  recordedBy: string;            // teacherId
+  paidAt: Timestamp;             // When payment was made (can be past date)
+  createdAt: Timestamp;          // When it was entered in system
+}
+```
+
+**Indexes**:
+```yaml
+payments:
+  - [teacherId ASC, feeRecordId ASC, paidAt DESC]        # Payments for a fee record
+  - [teacherId ASC, studentId ASC, paidAt DESC]          # Student payment history
+  - [teacherId ASC, month ASC, paidAt DESC]              # Monthly collection log
+  - [teacherId ASC, mode ASC, paidAt DESC]               # By payment mode
+```
+
+---
+
+## Collection: `notes`
+
+Study material / handouts uploaded by teacher. Metadata only — files in Firebase Storage.
+
+```typescript
+interface Note {
+  id: string;
+  teacherId: string;
+  batchId?: string;              // null = visible to all students of teacher
+
+  // Content
+  title: string;
+  description?: string;
+  subject?: string;
+  tags?: string[];               // ["algebra", "chapter-3"]
+
+  // File
+  storageUrl: string;            // Firebase Storage download URL
+  storagePath: string;           // Storage path (for deletion)
+  fileType: 'pdf' | 'image' | 'doc' | 'ppt' | 'video' | 'other';
+  fileSizeBytes: number;
+  fileName: string;              // Original filename
+
+  // Visibility
+  isPublic: boolean;             // Future: share publicly
+
+  // System
+  uploadedAt: Timestamp;
+  createdAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+notes:
+  - [teacherId ASC, batchId ASC, uploadedAt DESC]        # Notes for a batch
+  - [teacherId ASC, subject ASC, uploadedAt DESC]        # Filter by subject
+  - [teacherId ASC, tags ARRAY_CONTAINS, uploadedAt DESC] # Tag filter
+```
+
+---
+
+## Collection: `announcements`
+
+Messages published to students (in-app + WhatsApp link).
+
+```typescript
+interface Announcement {
+  id: string;
+  teacherId: string;
+  targetBatchId?: string;        // null = all students of teacher
+
+  // Content
+  title: string;
+  message: string;               // Max 1000 chars
+  attachmentUrl?: string;        // Optional file/image
+
+  // Channels
+  channels: Array<'inapp' | 'whatsapp'>;
+
+  // State
+  isPinned: boolean;
+  status: 'draft' | 'scheduled' | 'sent' | 'cancelled';
+
+  // Timing
+  scheduledAt?: Timestamp;       // For future announcements
+  sentAt?: Timestamp;
+
+  // Stats
+  recipientCount: number;        // Denormalized at send time
+
+  // System
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+announcements:
+  - [teacherId ASC, isPinned DESC, sentAt DESC]          # Pinned first, then recent
+  - [teacherId ASC, targetBatchId ASC, sentAt DESC]      # Per-batch announcements
+  - [teacherId ASC, status ASC, scheduledAt ASC]         # Scheduled announcements queue
+```
+
+---
+
+## Collection: `tests`
+
+A test or quiz (online or offline) published by teacher.
+
+```typescript
+interface Test {
+  id: string;
+  teacherId: string;
+  batchId: string;
+
+  // Info
+  title: string;
+  subject: string;
+  description?: string;
+  date: string;                  // "2024-03-20" (YYYY-MM-DD, test date)
+  totalMarks: number;
+  passingMarks?: number;
+  durationMinutes?: number;
+
+  // Type
+  type: 'online' | 'offline';
+
+  // Online test: questions embedded
+  questions?: Array<{
+    id: string;
+    text: string;
+    options?: string[];          // MCQ options
+    correct?: string | number;   // Index or value
+    marks: number;
+    type: 'mcq' | 'short' | 'long';
+  }>;
+
+  // Offline test: PDF upload
+  pdfUrl?: string;
+  pdfStoragePath?: string;
+
+  // Status
+  status: 'draft' | 'published' | 'closed';
+  publishedAt?: Timestamp;
+
+  // Stats (denormalized after grading)
+  attemptCount?: number;
+  averageScore?: number;
+  highestScore?: number;
+
+  // System
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Sub-collection alternative**: For large question sets, use `tests/{testId}/questions/{questionId}`.  
+Rule of thumb: Embed if < 50 questions; sub-collection if ≥ 50.
+
+---
+
+## Collection: `testResults`
+
+One record per student per test.
+
+```typescript
+interface TestResult {
+  id: string;                    // "{testId}_{studentId}" for direct lookup
+  teacherId: string;
+  testId: string;
+  studentId: string;
+  batchId: string;
+
+  // Denormalized
+  studentName: string;
+  testTitle: string;
+
+  // Score
+  score: number;
+  totalMarks: number;
+  percentage: number;            // Denormalized: (score/totalMarks)*100
+  isPassed?: boolean;
+
+  // Online test only
+  answers?: {
+    [questionId: string]: string | number;
+  };
+  timeTaken?: number;            // Seconds
+
+  // Offline test only — marks entered by teacher
+  marksBreakdown?: {
+    [section: string]: number;
+  };
+
+  // Metadata
+  submittedAt: Timestamp;        // When student submitted / teacher entered
+  gradedBy?: string;             // teacherId (for offline)
+  createdAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+testResults:
+  - [teacherId ASC, testId ASC, score DESC]              # Leaderboard
+  - [teacherId ASC, studentId ASC, submittedAt DESC]     # Per-student results
+  - [teacherId ASC, batchId ASC, submittedAt DESC]       # Batch results
+```
+
+---
+
+## Collection: `leads`
+
+Prospective students who submitted enquiry from teacher's public profile.
+
+```typescript
+interface Lead {
+  id: string;
+  teacherId: string;
+
+  // From form
+  name: string;
+  phone: string;
+  email?: string;
+  grade?: string;
+  message?: string;
+
+  // Source tracking
+  source: 'public_profile' | 'referral' | 'direct';
+  sourceSlug?: string;           // Teacher slug they landed on
+
+  // CRM Status
+  status: 'new' | 'contacted' | 'interested' | 'enrolled' | 'rejected' | 'dropped';
+  
+  // Follow-up
+  followUpNotes?: string;
+  followUpAt?: Timestamp;
+  lastContactedAt?: Timestamp;
+
+  // Conversion
+  convertedStudentId?: string;   // If enrolled, links to student doc
+
+  // Rate limiting protection
+  submittedFromIp?: string;      // Hashed IP (not plain text)
+
+  // System
+  receivedAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+**Indexes**:
+```yaml
+leads:
+  - [teacherId ASC, status ASC, receivedAt DESC]         # CRM pipeline view
+  - [teacherId ASC, receivedAt DESC]                     # All leads timeline
+```
+
+---
+
+## Relationships Map
+
+```
+teachers (1)
+  │
+  ├──< students (N)          teacherId FK
+  │       │
+  ├──< batches (N)           teacherId FK  
+  │       │
+  │       ├──── enrollments  ──── students (many-to-many via enrollments collection)
+  │       │
+  │       ├──< attendance    batchId + date (compound ID)
+  │       │
+  │       ├──< feeRecords    batchId + studentId + month
+  │       │        │
+  │       │        └──< payments    feeRecordId
+  │       │
+  │       ├──< tests         batchId
+  │       │        │
+  │       │        └──< testResults   testId + studentId (compound ID)
+  │       │
+  │       ├──< notes         batchId (nullable)
+  │       └──< announcements targetBatchId (nullable)
+  │
+  └──< leads (N)             teacherId FK
+```
+
+---
+
+## All Composite Indexes (firestore.indexes.json)
+
+```json
+{
+  "indexes": [
+    {
+      "collectionGroup": "students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "isArchived", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "isArchived", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "enrollments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "feeRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "feeRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "feeRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "feeRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "paidAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "paidAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "testResults",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "testId", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "testResults",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "isPinned", "order": "DESCENDING" },
+        { "fieldPath": "sentAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "batches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Firestore Security Rules
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: verify the calling user is the document's owner
+    function isOwner(teacherId) {
+      return request.auth != null && request.auth.uid == teacherId;
+    }
+
+    // Helper: the request is coming from a valid authenticated teacher
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Teachers ──────────────────────────────────────────────────────────
+    match /teachers/{teacherId} {
+      // Teacher can read/write their own doc
+      allow read, write: if isOwner(teacherId);
+      // Public profiles visible to anyone
+      allow read: if resource.data.isPublic == true;
+    }
+
+    // ── Students ─────────────────────────────────────────────────────────
+    match /students/{studentId} {
+      allow read, write: if isAuthenticated() 
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Batches ───────────────────────────────────────────────────────────
+    match /batches/{batchId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Enrollments ───────────────────────────────────────────────────────
+    match /enrollments/{enrollmentId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Attendance ────────────────────────────────────────────────────────
+    match /attendance/{attendanceId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Fee Records ───────────────────────────────────────────────────────
+    match /feeRecords/{feeRecordId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Payments ──────────────────────────────────────────────────────────
+    match /payments/{paymentId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Notes ─────────────────────────────────────────────────────────────
+    match /notes/{noteId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Tests ─────────────────────────────────────────────────────────────
+    match /tests/{testId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Test Results ──────────────────────────────────────────────────────
+    match /testResults/{resultId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Announcements ─────────────────────────────────────────────────────
+    match /announcements/{announcementId} {
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // ── Leads ─────────────────────────────────────────────────────────────
+    match /leads/{leadId} {
+      // Anyone can create a lead (public form — rate-limited at API layer)
+      allow create: if true;
+      // Only the teacher who owns it can read/update
+      allow read, write: if isAuthenticated()
+        && request.auth.uid == resource.data.teacherId;
+    }
+  }
+}
+```
+
+> ⚠️ These Firestore rules are a **second layer of defense**. The Node.js backend always enforces `teacherId` ownership checks as the **first layer**. Never rely on Firestore rules alone.
+
+---
+
+## Denormalization Decisions
+
+| Denormalized Field | Location | Why |
+|-------------------|----------|-----|
+| `studentName` | enrollments, feeRecords, payments, testResults | Show student name without extra read |
+| `batchName` | enrollments, feeRecords | Show batch name in student history |
+| `currentSeats` | batches | Avoid counting enrollments on every render |
+| `totalStudents`, `totalBatches` | teachers | Dashboard KPIs without aggregation |
+| `activeBatchIds` | students | Filter students in a batch via array-contains |
+| `balanceAmount` | feeRecords | `amount - paidAmount` (avoid calculation in UI) |
+| `percentage` | testResults | `(score/totalMarks)*100` (avoid in UI) |
+| `presentCount`, `absentCount` | attendance | Monthly summary without scanning records map |
+| `attemptCount`, `averageScore` | tests | Batch result summary without scanning testResults |
+
+> **Update strategy**: Use Firestore Transactions or batch writes when updating a document AND its denormalized copies. Service layer handles this.
+
+---
+
+## Document Size Estimates
+
+| Collection | Avg Doc Size | 100K teachers × 100 students |
+|-----------|-------------|------------------------------|
+| teachers | ~2 KB | 200 MB |
+| students | ~1 KB | 10 GB |
+| batches | ~1 KB | varies |
+| enrollments | ~500 B | varies |
+| attendance | ~5 KB (100 students) | significant |
+| feeRecords | ~800 B | varies |
+| payments | ~600 B | varies |
+
+> Firestore performance degrades for documents > **1 MB**. Attendance docs grow with student count — for batches > 200 students, consider splitting: `attendance/{batchId}_{date}_A`, `attendance/{batchId}_{date}_B`.
+
+---
+
+## Collection Summary
+
+| Collection | Multi-Tenant Key | Document ID Type |
+|-----------|-----------------|-----------------|
+| teachers | `id` (self) | Firebase Auth UID |
+| students | teacherId | Auto-generated |
+| batches | teacherId | Auto-generated |
+| enrollments | teacherId | Auto-generated |
+| attendance | teacherId | `{batchId}_{YYYY-MM-DD}` |
+| feeRecords | teacherId | Auto-generated |
+| payments | teacherId | Auto-generated |
+| notes | teacherId | Auto-generated |
+| tests | teacherId | Auto-generated |
+| testResults | teacherId | `{testId}_{studentId}` |
+| announcements | teacherId | Auto-generated |
+| leads | teacherId | Auto-generated |

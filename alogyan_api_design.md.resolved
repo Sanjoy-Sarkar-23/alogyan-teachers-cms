@@ -1,0 +1,1485 @@
+# Alogyan — REST & GraphQL API Design
+
+> Base URL: `https://api.alogyan.com/v1`  
+> GraphQL: `https://api.alogyan.com/graphql`  
+> All endpoints require `Authorization: Bearer <Firebase ID Token>` unless marked **[PUBLIC]**
+
+---
+
+## 1. Authentication & Authorization
+
+### Authentication Flow
+
+```
+Client                    Firebase Auth           API Backend
+  │                           │                       │
+  │── signIn (email/phone) ──▶│                       │
+  │◀──── ID Token ────────────│                       │
+  │                           │                       │
+  │── GET /students ─────────────────────────────────▶│
+  │   Authorization: Bearer <idToken>                  │
+  │                           │                       │
+  │                           │◀── verifyIdToken() ───│
+  │                           │                       │
+  │                           │──── { uid, claims } ──▶│
+  │                           │                       │
+  │◀──────────── 200 JSON ────────────────────────────│
+```
+
+### Firebase Custom Claims (Role System)
+
+```json
+{
+  "role": "teacher",        // "teacher" | "admin" | "student"
+  "teacherId": "T_xyz123",  // present for teacher role
+  "plan": "pro"             // "free" | "pro"
+}
+```
+
+### Role-Based Access Matrix
+
+| Resource | Teacher (own data) | Admin | Student |
+|---|---|---|---|
+| Own profile | R/W | R/W | — |
+| Students | R/W | R | R (self only) |
+| Batches | R/W | R | R (enrolled) |
+| Attendance | R/W | R | R (own) |
+| Fees | R/W | R | R (own) |
+| Notes | R/W | R | R (batch) |
+| Announcements | R/W | R | R |
+| Reports | R | R | — |
+| Admin panel | — | R/W | — |
+
+> **Multi-tenant rule**: Every query in the backend appends `WHERE teacherId = token.teacherId`. A teacher can never read another teacher's data.
+
+---
+
+## 2. Standard Envelope
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "meta": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 150,
+    "totalPages": 8
+  },
+  "timestamp": "2026-03-21T18:07:00.000Z"
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "STUDENT_NOT_FOUND",
+    "message": "Student with ID s_abc123 not found",
+    "details": { "id": "s_abc123" }
+  },
+  "timestamp": "2026-03-21T18:07:00.000Z"
+}
+```
+
+### HTTP Status Codes
+
+| Situation | Code |
+|---|---|
+| Success with body | `200 OK` |
+| Created resource | `201 Created` |
+| Success, no body | `204 No Content` |
+| Bad input / validation | `400 Bad Request` |
+| Missing / invalid token | `401 Unauthorized` |
+| Valid token, no permission | `403 Forbidden` |
+| Resource not found | `404 Not Found` |
+| Conflict (duplicate) | `409 Conflict` |
+| Rate limit exceeded | `429 Too Many Requests` |
+| Server error | `500 Internal Server Error` |
+
+### Standard Error Codes
+
+```
+AUTH_TOKEN_MISSING          AUTH_TOKEN_EXPIRED          AUTH_TOKEN_INVALID
+FORBIDDEN_RESOURCE          STUDENT_NOT_FOUND           BATCH_NOT_FOUND
+ATTENDANCE_NOT_FOUND        FEE_RECORD_NOT_FOUND        NOTE_NOT_FOUND
+ANNOUNCEMENT_NOT_FOUND      DUPLICATE_ENROLLMENT        SEAT_LIMIT_REACHED
+FEE_ALREADY_GENERATED       INVALID_DATE_RANGE          VALIDATION_ERROR
+RATE_LIMIT_EXCEEDED         INTERNAL_ERROR
+```
+
+### Pagination Query Params
+
+```
+?page=1&pageSize=20&sortBy=createdAt&sortOrder=desc
+```
+
+---
+
+## 3. Module: Students
+
+### Endpoints
+
+```
+GET    /students                    List students
+POST   /students                    Create student
+POST   /students/bulk               Bulk import (CSV)
+GET    /students/:studentId         Get student detail
+PATCH  /students/:studentId         Update student
+DELETE /students/:studentId         Archive student (soft delete)
+GET    /students/:studentId/batches  Enrolled batches
+GET    /students/:studentId/fees    Fee history
+GET    /students/:studentId/attendance  Attendance summary
+```
+
+### GET /students
+
+**Query Params:**
+```
+?page=1&pageSize=20
+&search=Priya           (name or phone)
+&batchId=b_xyz          (filter by batch)
+&isArchived=false       (default: false)
+&sortBy=name&sortOrder=asc
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "s_abc123",
+      "name": "Priya Sharma",
+      "phone": "9876543210",
+      "parentPhone": "9123456789",
+      "grade": "10th",
+      "address": "Pune, MH",
+      "isArchived": false,
+      "activeBatches": ["Math Batch A", "Science Batch B"],
+      "feeStatus": "pending",
+      "attendancePercent": 87.5,
+      "createdAt": "2026-01-15T00:00:00.000Z"
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 45, "totalPages": 3 }
+}
+```
+
+### POST /students
+
+**Request:**
+```json
+{
+  "name": "Priya Sharma",
+  "phone": "9876543210",
+  "parentPhone": "9123456789",
+  "grade": "10th",
+  "address": "Pune, MH",
+  "batchIds": ["b_xyz"]
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "s_abc123",
+    "name": "Priya Sharma",
+    "phone": "9876543210",
+    "parentPhone": "9123456789",
+    "grade": "10th",
+    "address": "Pune, MH",
+    "isArchived": false,
+    "teacherId": "T_xyz123",
+    "createdAt": "2026-03-21T18:00:00.000Z"
+  }
+}
+```
+
+### POST /students/bulk
+
+**Request:** `multipart/form-data`
+```
+file: students.csv     (columns: name, phone, parentPhone, grade, address, batchName)
+batchId: b_xyz         (optional override)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "imported": 28,
+    "skipped": 2,
+    "errors": [
+      { "row": 5, "reason": "Invalid phone number: 123" },
+      { "row": 12, "reason": "Duplicate phone: 9876543210" }
+    ]
+  }
+}
+```
+
+### PATCH /students/:studentId
+
+**Request (partial update):**
+```json
+{
+  "phone": "9999888877",
+  "grade": "11th"
+}
+```
+
+### DELETE /students/:studentId
+
+Soft deletes: sets `isArchived: true`. Returns `204 No Content`.
+
+---
+
+## 4. Module: Batches
+
+### Endpoints
+
+```
+GET    /batches                     List batches
+POST   /batches                     Create batch
+GET    /batches/:batchId            Batch detail + students
+PATCH  /batches/:batchId            Update batch
+DELETE /batches/:batchId            Archive batch
+POST   /batches/:batchId/enroll     Enroll students
+DELETE /batches/:batchId/enroll     Remove students
+POST   /batches/:batchId/clone      Clone batch
+```
+
+### GET /batches
+
+**Query Params:**
+```
+?status=active          (active | paused | closed | all)
+&subject=Mathematics
+&page=1&pageSize=20
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "b_xyz",
+      "name": "Math Batch A",
+      "subject": "Mathematics",
+      "schedule": {
+        "days": ["Monday", "Wednesday", "Friday"],
+        "time": "16:00",
+        "durationMinutes": 90
+      },
+      "feesPerMonth": 1500,
+      "maxSeats": 30,
+      "currentSeats": 22,
+      "status": "active",
+      "term": "2026-Q1",
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 8, "totalPages": 1 }
+}
+```
+
+### POST /batches
+
+**Request:**
+```json
+{
+  "name": "Math Batch A",
+  "subject": "Mathematics",
+  "schedule": {
+    "days": ["Monday", "Wednesday", "Friday"],
+    "time": "16:00",
+    "durationMinutes": 90
+  },
+  "feesPerMonth": 1500,
+  "maxSeats": 30,
+  "term": "2026-Q1"
+}
+```
+
+### GET /batches/:batchId
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "b_xyz",
+    "name": "Math Batch A",
+    "subject": "Mathematics",
+    "schedule": { "days": ["Monday", "Wednesday", "Friday"], "time": "16:00", "durationMinutes": 90 },
+    "feesPerMonth": 1500,
+    "maxSeats": 30,
+    "currentSeats": 22,
+    "status": "active",
+    "term": "2026-Q1",
+    "students": [
+      { "id": "s_abc123", "name": "Priya Sharma", "phone": "9876543210", "enrolledAt": "2026-01-10T00:00:00.000Z" }
+    ]
+  }
+}
+```
+
+### POST /batches/:batchId/enroll
+
+**Request:**
+```json
+{
+  "studentIds": ["s_abc123", "s_def456"]
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "enrolled": 2,
+    "errors": []
+  }
+}
+```
+
+### POST /batches/:batchId/clone
+
+**Request:**
+```json
+{
+  "newName": "Math Batch A — 2026-Q2",
+  "term": "2026-Q2",
+  "copyStudents": true
+}
+```
+
+---
+
+## 5. Module: Attendance
+
+### Endpoints
+
+```
+GET    /attendance/:batchId         Get attendance records
+POST   /attendance/:batchId         Mark/submit attendance for a date
+PATCH  /attendance/:batchId/:date   Update attendance (retroactive)
+GET    /attendance/student/:studentId  Student attendance summary
+GET    /attendance/:batchId/summary Monthly summary report
+```
+
+### GET /attendance/:batchId
+
+**Query Params:**
+```
+?from=2026-03-01&to=2026-03-31    (date range, max 90 days)
+&studentId=s_abc123               (optional: filter one student)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "date": "2026-03-04",
+      "batchId": "b_xyz",
+      "records": {
+        "s_abc123": "present",
+        "s_def456": "absent",
+        "s_ghi789": "holiday"
+      },
+      "markedAt": "2026-03-04T17:35:00.000Z"
+    }
+  ]
+}
+```
+
+### POST /attendance/:batchId
+
+**Request:**
+```json
+{
+  "date": "2026-03-21",
+  "records": {
+    "s_abc123": "present",
+    "s_def456": "absent",
+    "s_ghi789": "present"
+  }
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2026-03-21",
+    "batchId": "b_xyz",
+    "totalPresent": 2,
+    "totalAbsent": 1,
+    "markedAt": "2026-03-21T17:35:00.000Z"
+  }
+}
+```
+
+### GET /attendance/:batchId/summary
+
+**Query Params:** `?month=2026-03`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "month": "2026-03",
+    "batchId": "b_xyz",
+    "totalClasses": 13,
+    "students": [
+      { "studentId": "s_abc123", "name": "Priya Sharma", "present": 11, "absent": 2, "percentage": 84.6 },
+      { "studentId": "s_def456", "name": "Rahul Verma", "present": 13, "absent": 0, "percentage": 100 }
+    ]
+  }
+}
+```
+
+---
+
+## 6. Module: Fees
+
+### Endpoints
+
+```
+GET    /fees                         List fee records (with filters)
+POST   /fees/generate                Bulk generate fee records for a batch
+GET    /fees/:feeRecordId            Single fee record
+PATCH  /fees/:feeRecordId/pay        Mark as fully paid
+PATCH  /fees/:feeRecordId/partial    Record partial payment
+DELETE /fees/:feeRecordId            Delete fee record (admin only)
+GET    /fees/student/:studentId      Student full fee history
+GET    /fees/batch/:batchId          Batch fee overview for a month
+```
+
+### GET /fees
+
+**Query Params:**
+```
+?status=pending         (pending | partial | paid | overdue)
+&batchId=b_xyz
+&studentId=s_abc123
+&month=2026-03
+&page=1&pageSize=20
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "fr_mno789",
+      "studentId": "s_abc123",
+      "studentName": "Priya Sharma",
+      "batchId": "b_xyz",
+      "batchName": "Math Batch A",
+      "amount": 1500,
+      "paidAmount": 0,
+      "balance": 1500,
+      "dueDate": "2026-03-10",
+      "month": "2026-03",
+      "status": "overdue",
+      "paymentMode": null,
+      "paidAt": null,
+      "memo": ""
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 18, "totalPages": 1 }
+}
+```
+
+### POST /fees/generate
+
+**Request:**
+```json
+{
+  "batchId": "b_xyz",
+  "month": "2026-04",
+  "amount": 1500,
+  "dueDate": "2026-04-10"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "created": 22,
+    "skipped": 0,
+    "note": "Skipped students already have a record for 2026-04"
+  }
+}
+```
+
+### PATCH /fees/:feeRecordId/pay
+
+**Request:**
+```json
+{
+  "paymentMode": "upi",
+  "paidAt": "2026-03-21T14:00:00.000Z",
+  "memo": "UPI ref: 123456789"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "fr_mno789",
+    "status": "paid",
+    "paidAmount": 1500,
+    "balance": 0,
+    "paymentMode": "upi",
+    "paidAt": "2026-03-21T14:00:00.000Z"
+  }
+}
+```
+
+### PATCH /fees/:feeRecordId/partial
+
+**Request:**
+```json
+{
+  "paidAmount": 750,
+  "paymentMode": "cash",
+  "memo": "Half payment received"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "fr_mno789",
+    "status": "partial",
+    "amount": 1500,
+    "paidAmount": 750,
+    "balance": 750,
+    "paymentMode": "cash"
+  }
+}
+```
+
+---
+
+## 7. Module: Notes
+
+### Endpoints
+
+```
+GET    /notes                        List notes
+POST   /notes/upload-url             Get signed URL for Firebase Storage upload
+POST   /notes                        Save note metadata (after upload)
+GET    /notes/:noteId                Note detail
+DELETE /notes/:noteId                Delete note + storage object
+```
+
+### POST /notes/upload-url
+
+**Request:**
+```json
+{
+  "fileName": "chapter5-notes.pdf",
+  "fileType": "application/pdf",
+  "fileSize": 2048576
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "uploadUrl": "https://storage.googleapis.com/bucket/notes/T_xyz123/chapter5-notes.pdf?X-Goog-Signature=...",
+    "storageKey": "notes/T_xyz123/chapter5-notes.pdf",
+    "expiresAt": "2026-03-21T19:00:00.000Z"
+  }
+}
+```
+
+### POST /notes
+
+**Request:**
+```json
+{
+  "title": "Chapter 5 — Trigonometry",
+  "subject": "Mathematics",
+  "batchId": "b_xyz",
+  "storageKey": "notes/T_xyz123/chapter5-notes.pdf",
+  "fileType": "application/pdf",
+  "fileSizeBytes": 2048576
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "n_jkl321",
+    "title": "Chapter 5 — Trigonometry",
+    "subject": "Mathematics",
+    "batchId": "b_xyz",
+    "batchName": "Math Batch A",
+    "storageUrl": "https://storage.googleapis.com/bucket/notes/T_xyz123/chapter5-notes.pdf",
+    "fileType": "application/pdf",
+    "fileSizeBytes": 2048576,
+    "uploadedAt": "2026-03-21T18:00:00.000Z"
+  }
+}
+```
+
+### GET /notes
+
+**Query Params:**
+```
+?batchId=b_xyz
+&subject=Mathematics
+&fileType=application/pdf
+&page=1&pageSize=20
+```
+
+---
+
+## 8. Module: Announcements
+
+### Endpoints
+
+```
+GET    /announcements                List announcements
+POST   /announcements                Create announcement
+GET    /announcements/:id            Single announcement
+PATCH  /announcements/:id            Update announcement
+PATCH  /announcements/:id/pin        Toggle pin
+DELETE /announcements/:id            Delete
+POST   /announcements/:id/send       Send via configured channels
+```
+
+### POST /announcements
+
+**Request:**
+```json
+{
+  "title": "Holiday Notice",
+  "message": "Classes are suspended on 25-March due to Holi.",
+  "targetBatchId": null,
+  "channels": ["inapp", "whatsapp"],
+  "scheduledAt": null
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "a_pqr654",
+    "title": "Holiday Notice",
+    "message": "Classes are suspended on 25-March due to Holi.",
+    "targetBatchId": null,
+    "targetBatchName": null,
+    "channels": ["inapp", "whatsapp"],
+    "isPinned": false,
+    "status": "sent",
+    "whatsappLinks": [
+      "https://wa.me/919876543210?text=Holiday+Notice%3A+...",
+      "https://wa.me/919123456789?text=Holiday+Notice%3A+..."
+    ],
+    "sentAt": "2026-03-21T18:00:00.000Z",
+    "scheduledAt": null
+  }
+}
+```
+
+### GET /announcements
+
+**Query Params:**
+```
+?batchId=b_xyz
+&isPinned=true
+&page=1&pageSize=20
+```
+
+---
+
+## 9. Module: Reports
+
+All report endpoints are **read-only** (teacher and admin only). Heavy responses are cached in Redis for 1 hour.
+
+### Endpoints
+
+```
+GET    /reports/dashboard            KPI summary for teacher home
+GET    /reports/attendance           Attendance report
+GET    /reports/fees                 Fee collection report
+GET    /reports/students             Per-student combined report
+GET    /reports/attendance/export    CSV export
+GET    /reports/fees/export          CSV export
+```
+
+### GET /reports/dashboard
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalStudents": 85,
+    "activeBatches": 6,
+    "feesCollectedThisMonth": 48000,
+    "feesPendingThisMonth": 12000,
+    "feesOverdue": 7500,
+    "todaysBatches": [
+      { "id": "b_xyz", "name": "Math Batch A", "time": "16:00", "students": 22 }
+    ],
+    "newLeads": 3,
+    "attendanceTodayMarked": 4,
+    "attendanceTodayPending": 2
+  }
+}
+```
+
+### GET /reports/attendance
+
+**Query Params:**
+```
+?batchId=b_xyz          (optional — all batches if omitted)
+&from=2026-03-01
+&to=2026-03-31
+&format=json            (json | csv)
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "period": { "from": "2026-03-01", "to": "2026-03-31" },
+    "batches": [
+      {
+        "batchId": "b_xyz",
+        "batchName": "Math Batch A",
+        "totalClasses": 13,
+        "students": [
+          { "studentId": "s_abc123", "name": "Priya Sharma", "present": 11, "absent": 2, "percentage": 84.6 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### GET /reports/fees
+
+**Query Params:**
+```
+?month=2026-03
+&batchId=b_xyz
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "month": "2026-03",
+    "totalExpected": 60000,
+    "totalCollected": 48000,
+    "totalPending": 8500,
+    "totalOverdue": 3500,
+    "collectionRate": 80,
+    "byBatch": [
+      {
+        "batchId": "b_xyz",
+        "batchName": "Math Batch A",
+        "expected": 33000,
+        "collected": 28500,
+        "pending": 3000,
+        "overdue": 1500
+      }
+    ]
+  }
+}
+```
+
+### GET /reports/students
+
+**Query Params:**
+```
+?studentId=s_abc123     (required)
+&month=2026-03
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "student": {
+      "id": "s_abc123",
+      "name": "Priya Sharma",
+      "phone": "9876543210",
+      "grade": "10th"
+    },
+    "batches": ["Math Batch A", "Science Batch B"],
+    "attendance": {
+      "totalClasses": 26,
+      "present": 22,
+      "absent": 4,
+      "percentage": 84.6
+    },
+    "fees": {
+      "month": "2026-03",
+      "records": [
+        { "batchName": "Math Batch A", "amount": 1500, "status": "paid", "paidAt": "2026-03-08T00:00:00.000Z" },
+        { "batchName": "Science Batch B", "amount": 1200, "status": "pending", "dueDate": "2026-03-10" }
+      ]
+    }
+  }
+}
+```
+
+### Export Endpoints
+
+```
+GET /reports/attendance/export?batchId=b_xyz&from=2026-03-01&to=2026-03-31
+GET /reports/fees/export?month=2026-03
+```
+
+Returns `Content-Type: text/csv` with `Content-Disposition: attachment; filename="...csv"`.
+
+---
+
+## 10. GraphQL Schema
+
+### Schema
+
+```graphql
+# ──────────────────────────────
+# Scalars & Enums
+# ──────────────────────────────
+scalar DateTime
+scalar Date           # YYYY-MM-DD
+scalar Month          # YYYY-MM
+
+enum StudentStatus { ACTIVE ARCHIVED }
+enum BatchStatus   { ACTIVE PAUSED CLOSED }
+enum AttendanceStatus { PRESENT ABSENT HOLIDAY }
+enum FeeStatus     { PENDING PARTIAL PAID OVERDUE }
+enum PaymentMode   { CASH UPI CHEQUE OTHER }
+enum AnnouncementChannel { INAPP WHATSAPP }
+enum UserRole      { TEACHER ADMIN STUDENT }
+enum SortOrder     { ASC DESC }
+
+# ──────────────────────────────
+# Core Types
+# ──────────────────────────────
+type Teacher {
+  id: ID!
+  name: String!
+  phone: String!
+  email: String
+  slug: String!
+  bio: String
+  subjects: [String!]!
+  plan: String!
+  isVerified: Boolean!
+  createdAt: DateTime!
+
+  students(page: Int, pageSize: Int, search: String, isArchived: Boolean): StudentConnection!
+  batches(status: BatchStatus): [Batch!]!
+  announcements(page: Int, pageSize: Int): AnnouncementConnection!
+  dashboard: DashboardSummary!
+}
+
+type Student {
+  id: ID!
+  name: String!
+  phone: String!
+  parentPhone: String
+  grade: String
+  address: String
+  isArchived: Boolean!
+  createdAt: DateTime!
+  teacherId: ID!
+
+  batches: [Batch!]!
+  feeHistory(month: Month): [FeeRecord!]!
+  attendanceSummary(batchId: ID, from: Date, to: Date): AttendanceSummary!
+}
+
+type Batch {
+  id: ID!
+  name: String!
+  subject: String
+  schedule: Schedule!
+  feesPerMonth: Int!
+  maxSeats: Int!
+  currentSeats: Int!
+  status: BatchStatus!
+  term: String
+  teacherId: ID!
+  createdAt: DateTime!
+
+  students: [Student!]!
+  attendance(from: Date!, to: Date!): [AttendanceRecord!]!
+  fees(month: Month): [FeeRecord!]!
+  attendanceSummary(month: Month!): BatchAttendanceSummary!
+}
+
+type Schedule {
+  days: [String!]!
+  time: String!
+  durationMinutes: Int!
+}
+
+type AttendanceRecord {
+  id: ID!
+  date: Date!
+  batchId: ID!
+  records: [AttendanceEntry!]!
+  markedAt: DateTime!
+}
+
+type AttendanceEntry {
+  studentId: ID!
+  studentName: String!
+  status: AttendanceStatus!
+}
+
+type AttendanceSummary {
+  totalClasses: Int!
+  present: Int!
+  absent: Int!
+  percentage: Float!
+}
+
+type BatchAttendanceSummary {
+  month: Month!
+  totalClasses: Int!
+  students: [StudentAttendanceStat!]!
+}
+
+type StudentAttendanceStat {
+  studentId: ID!
+  studentName: String!
+  present: Int!
+  absent: Int!
+  percentage: Float!
+}
+
+type FeeRecord {
+  id: ID!
+  studentId: ID!
+  studentName: String!
+  batchId: ID!
+  batchName: String!
+  amount: Int!
+  paidAmount: Int!
+  balance: Int!
+  dueDate: Date!
+  month: Month!
+  status: FeeStatus!
+  paymentMode: PaymentMode
+  paidAt: DateTime
+  memo: String
+}
+
+type Note {
+  id: ID!
+  title: String!
+  subject: String
+  batchId: ID
+  batchName: String
+  storageUrl: String!
+  fileType: String!
+  fileSizeBytes: Int!
+  uploadedAt: DateTime!
+}
+
+type Announcement {
+  id: ID!
+  title: String!
+  message: String!
+  targetBatchId: ID
+  targetBatchName: String
+  channels: [AnnouncementChannel!]!
+  isPinned: Boolean!
+  sentAt: DateTime
+  scheduledAt: DateTime
+  whatsappLinks: [String!]!
+}
+
+type DashboardSummary {
+  totalStudents: Int!
+  activeBatches: Int!
+  feesCollectedThisMonth: Int!
+  feesPendingThisMonth: Int!
+  feesOverdue: Int!
+  newLeads: Int!
+  todaysBatches: [TodayBatch!]!
+  attendanceTodayMarked: Int!
+  attendanceTodayPending: Int!
+}
+
+type TodayBatch {
+  id: ID!
+  name: String!
+  time: String!
+  students: Int!
+}
+
+# ──────────────────────────────
+# Pagination (Relay-style)
+# ──────────────────────────────
+type StudentConnection {
+  edges: [StudentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+type StudentEdge { node: Student! cursor: String! }
+
+type AnnouncementConnection {
+  edges: [AnnouncementEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+type AnnouncementEdge { node: Announcement! cursor: String! }
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# ──────────────────────────────
+# Queries
+# ──────────────────────────────
+type Query {
+  # Auth context
+  me: Teacher!
+
+  # Students
+  student(id: ID!): Student
+  students(
+    page: Int
+    pageSize: Int
+    search: String
+    batchId: ID
+    isArchived: Boolean
+    sortBy: String
+    sortOrder: SortOrder
+  ): StudentConnection!
+
+  # Batches
+  batch(id: ID!): Batch
+  batches(status: BatchStatus): [Batch!]!
+
+  # Attendance
+  attendance(batchId: ID!, from: Date!, to: Date!): [AttendanceRecord!]!
+  attendanceSummary(batchId: ID!, month: Month!): BatchAttendanceSummary!
+
+  # Fees
+  feeRecord(id: ID!): FeeRecord
+  feeRecords(
+    status: FeeStatus
+    batchId: ID
+    studentId: ID
+    month: Month
+    page: Int
+    pageSize: Int
+  ): FeeRecordConnection!
+
+  # Notes
+  notes(batchId: ID, fileType: String, page: Int, pageSize: Int): NoteConnection!
+  note(id: ID!): Note
+
+  # Announcements
+  announcements(batchId: ID, isPinned: Boolean, page: Int, pageSize: Int): AnnouncementConnection!
+  announcement(id: ID!): Announcement
+
+  # Reports
+  dashboard: DashboardSummary!
+  attendanceReport(batchId: ID, from: Date!, to: Date!): AttendanceReport!
+  feeReport(month: Month!, batchId: ID): FeeReport!
+  studentReport(studentId: ID!, month: Month): StudentReport!
+}
+
+# ──────────────────────────────
+# Mutations
+# ──────────────────────────────
+type Mutation {
+  # Students
+  createStudent(input: CreateStudentInput!): StudentPayload!
+  updateStudent(id: ID!, input: UpdateStudentInput!): StudentPayload!
+  archiveStudent(id: ID!): BooleanPayload!
+  bulkImportStudents(batchId: ID, csvUrl: String!): BulkImportPayload!
+
+  # Batches
+  createBatch(input: CreateBatchInput!): BatchPayload!
+  updateBatch(id: ID!, input: UpdateBatchInput!): BatchPayload!
+  enrollStudents(batchId: ID!, studentIds: [ID!]!): EnrollPayload!
+  removeStudents(batchId: ID!, studentIds: [ID!]!): BooleanPayload!
+  cloneBatch(id: ID!, input: CloneBatchInput!): BatchPayload!
+
+  # Attendance
+  markAttendance(batchId: ID!, input: MarkAttendanceInput!): AttendanceRecord!
+  updateAttendance(batchId: ID!, date: Date!, input: MarkAttendanceInput!): AttendanceRecord!
+
+  # Fees
+  generateFees(input: GenerateFeesInput!): GenerateFeesPayload!
+  markFeePaid(id: ID!, input: MarkPaidInput!): FeeRecord!
+  markFeePartial(id: ID!, input: MarkPartialInput!): FeeRecord!
+
+  # Notes
+  requestUploadUrl(input: UploadUrlInput!): UploadUrlPayload!
+  saveNote(input: SaveNoteInput!): NotePayload!
+  deleteNote(id: ID!): BooleanPayload!
+
+  # Announcements
+  createAnnouncement(input: CreateAnnouncementInput!): AnnouncementPayload!
+  updateAnnouncement(id: ID!, input: UpdateAnnouncementInput!): AnnouncementPayload!
+  togglePinAnnouncement(id: ID!): AnnouncementPayload!
+  deleteAnnouncement(id: ID!): BooleanPayload!
+}
+
+# ──────────────────────────────
+# Subscriptions (Real-time)
+# ──────────────────────────────
+type Subscription {
+  newLead(teacherId: ID!): Lead!
+  feeUpdated(teacherId: ID!): FeeRecord!
+}
+
+# ──────────────────────────────
+# Input Types
+# ──────────────────────────────
+input CreateStudentInput {
+  name: String!
+  phone: String!
+  parentPhone: String
+  grade: String
+  address: String
+  batchIds: [ID!]
+}
+
+input UpdateStudentInput {
+  name: String
+  phone: String
+  parentPhone: String
+  grade: String
+  address: String
+}
+
+input CreateBatchInput {
+  name: String!
+  subject: String
+  schedule: ScheduleInput!
+  feesPerMonth: Int!
+  maxSeats: Int
+  term: String
+}
+
+input ScheduleInput {
+  days: [String!]!
+  time: String!
+  durationMinutes: Int!
+}
+
+input UpdateBatchInput {
+  name: String
+  subject: String
+  schedule: ScheduleInput
+  feesPerMonth: Int
+  maxSeats: Int
+  status: BatchStatus
+  term: String
+}
+
+input CloneBatchInput {
+  newName: String!
+  term: String!
+  copyStudents: Boolean
+}
+
+input MarkAttendanceInput {
+  date: Date!
+  records: [AttendanceEntryInput!]!
+}
+
+input AttendanceEntryInput {
+  studentId: ID!
+  status: AttendanceStatus!
+}
+
+input GenerateFeesInput {
+  batchId: ID!
+  month: Month!
+  amount: Int!
+  dueDate: Date!
+}
+
+input MarkPaidInput {
+  paymentMode: PaymentMode!
+  paidAt: DateTime
+  memo: String
+}
+
+input MarkPartialInput {
+  paidAmount: Int!
+  paymentMode: PaymentMode!
+  memo: String
+}
+
+input UploadUrlInput {
+  fileName: String!
+  fileType: String!
+  fileSizeBytes: Int!
+}
+
+input SaveNoteInput {
+  title: String!
+  subject: String
+  batchId: ID
+  storageKey: String!
+  fileType: String!
+  fileSizeBytes: Int!
+}
+
+input CreateAnnouncementInput {
+  title: String!
+  message: String!
+  targetBatchId: ID
+  channels: [AnnouncementChannel!]!
+  scheduledAt: DateTime
+}
+
+input UpdateAnnouncementInput {
+  title: String
+  message: String
+  targetBatchId: ID
+  channels: [AnnouncementChannel!]
+  scheduledAt: DateTime
+}
+
+# ──────────────────────────────
+# Payload (Mutation Response) Types
+# ──────────────────────────────
+type StudentPayload    { student: Student errors: [FieldError!]! }
+type BatchPayload      { batch: Batch errors: [FieldError!]! }
+type NotePayload       { note: Note errors: [FieldError!]! }
+type AnnouncementPayload { announcement: Announcement errors: [FieldError!]! }
+type BooleanPayload    { success: Boolean! errors: [FieldError!]! }
+type EnrollPayload     { enrolled: Int! errors: [FieldError!]! }
+type GenerateFeesPayload { created: Int! skipped: Int! errors: [FieldError!]! }
+type BulkImportPayload { imported: Int! skipped: Int! rowErrors: [RowError!]! }
+type UploadUrlPayload  { uploadUrl: String! storageKey: String! expiresAt: DateTime! }
+
+type FieldError  { field: String message: String! }
+type RowError    { row: Int! reason: String! }
+
+# ──────────────────────────────
+# Report Types
+# ──────────────────────────────
+type AttendanceReport {
+  period: DateRange!
+  batches: [BatchAttendanceData!]!
+}
+
+type DateRange { from: Date! to: Date! }
+
+type BatchAttendanceData {
+  batchId: ID!
+  batchName: String!
+  totalClasses: Int!
+  students: [StudentAttendanceStat!]!
+}
+
+type FeeReport {
+  month: Month!
+  totalExpected: Int!
+  totalCollected: Int!
+  totalPending: Int!
+  totalOverdue: Int!
+  collectionRate: Float!
+  byBatch: [BatchFeeData!]!
+}
+
+type BatchFeeData {
+  batchId: ID!
+  batchName: String!
+  expected: Int!
+  collected: Int!
+  pending: Int!
+  overdue: Int!
+}
+
+type StudentReport {
+  student: Student!
+  attendance: AttendanceSummary!
+  fees: [FeeRecord!]!
+}
+
+# Additional connection types
+type FeeRecordConnection { edges: [FeeRecordEdge!]! pageInfo: PageInfo! totalCount: Int! }
+type FeeRecordEdge { node: FeeRecord! cursor: String! }
+type NoteConnection { edges: [NoteEdge!]! pageInfo: PageInfo! totalCount: Int! }
+type NoteEdge { node: Note! cursor: String! }
+
+# Lead type (read-only from teacher perspective)
+type Lead {
+  id: ID!
+  name: String!
+  phone: String!
+  grade: String
+  message: String
+  status: String!
+  receivedAt: DateTime!
+}
+```
+
+---
+
+## 11. GraphQL Example Operations
+
+### Query: Dashboard
+
+```graphql
+query Dashboard {
+  dashboard {
+    totalStudents
+    activeBatches
+    feesCollectedThisMonth
+    feesPendingThisMonth
+    feesOverdue
+    newLeads
+    todoaysBatches { id name time students }
+    attendanceTodayMarked
+    attendanceTodayPending
+  }
+}
+```
+
+### Query: Students List
+
+```graphql
+query Students($search: String, $batchId: ID) {
+  students(page: 1, pageSize: 20, search: $search, batchId: $batchId) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id name phone grade isArchived
+        batches { id name }
+        attendanceSummary { percentage }
+      }
+    }
+  }
+}
+```
+
+### Mutation: Mark Attendance
+
+```graphql
+mutation MarkAttendance($batchId: ID!, $date: Date!, $records: [AttendanceEntryInput!]!) {
+  markAttendance(batchId: $batchId, input: { date: $date, records: $records }) {
+    date
+    records { studentId studentName status }
+    markedAt
+  }
+}
+```
+
+### Mutation: Generate Fee Records
+
+```graphql
+mutation GenerateFees($input: GenerateFeesInput!) {
+  generateFees(input: $input) {
+    created
+    skipped
+    errors { field message }
+  }
+}
+```
+
+### Subscription: New Lead Alert
+
+```graphql
+subscription NewLead($teacherId: ID!) {
+  newLead(teacherId: $teacherId) {
+    id name phone grade message status receivedAt
+  }
+}
+```
+
+---
+
+## 12. DataLoader Strategy (N+1 Prevention)
+
+```
+Loaders instantiated per request in GraphQL context:
+
+studentLoader          → batch by studentId[]
+batchLoader            → batch by batchId[]
+enrollmentsByBatch     → batch by batchId[] → returns Student[]
+feesByStudent          → batch by studentId[] → returns FeeRecord[]
+attendanceByBatch      → batch by batchId[] → returns AttendanceRecord[]
+notesByBatch           → batch by batchId[] → returns Note[]
+```
+
+---
+
+## 13. Rate Limits
+
+| Endpoint Category | Authenticated | Unauthenticated |
+|---|---|---|
+| Standard API calls | 100 req/min | 20 req/min |
+| Bulk import | 5 req/min | — |
+| Report export | 10 req/min | — |
+| Lead submission [PUBLIC] | — | 3 req/hr per IP |
+| Upload URL generation | 20 req/min | — |
+
+Rate limit headers returned:
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1742584020
+```
+
+---
+
+## 14. OpenAPI Tags Summary
+
+| Tag | Base Path |
+|---|---|
+| `students` | `/v1/students` |
+| `batches` | `/v1/batches` |
+| `attendance` | `/v1/attendance` |
+| `fees` | `/v1/fees` |
+| `notes` | `/v1/notes` |
+| `announcements` | `/v1/announcements` |
+| `reports` | `/v1/reports` |
+| `auth` | Firebase SDK (no REST route) |

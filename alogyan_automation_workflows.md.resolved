@@ -1,0 +1,542 @@
+# Alogyan — Automation Workflows
+
+> **Stack**: Inngest (durable background jobs) + Firebase Firestore + WhatsApp Cloud API (or Twilio for SMS) + FCM (push notifications)
+> **Time zone**: All cron schedules in `Asia/Kolkata` (IST).
+> **Idempotency**: Every external call (WhatsApp, SMS, FCM) is wrapped with an idempotency key = `teacherId + workflowId + targetId + month/date` to prevent double-sends on retries.
+
+---
+
+## Workflow 1 — Monthly Fee Reminder
+
+### Overview
+
+Automatically remind students/parents about unpaid or partially paid fees at the start of every month.
+
+### Trigger
+
+| Property | Value |
+|---|---|
+| Type | **Cron (scheduled)** |
+| Schedule | `0 9 10 * *` — 10th of every month at 09:00 IST |
+| Fallback | Also fires as event `fee/reminder.requested` when teacher manually clicks "Send Reminder" |
+
+```
+Every month on the 10th:
+  → Scheduler fires cron trigger
+  → Enqueues one workflow job per teacher (fan-out)
+```
+
+### Workflow Steps
+
+```
+[START]: monthly-fee-reminder
+│
+├─ Step 1: fetch-pending-fees
+│    Query Firestore: fees WHERE
+│      teacherId == ctx.teacherId
+│      AND month == currentMonth
+│      AND status IN ["pending", "partial", "overdue"]
+│
+├─ Step 2: group-by-student
+│    Group fee records by studentId
+│    Compute: totalDue, batchNames[], dueDate
+│
+├─ Step 3: send-messages (parallel fan-out)
+│    For each student:
+│    ├─ Step 3a: send-whatsapp → parentPhone
+│    ├─ Step 3b: send-push-notification → student FCM token (if app installed)
+│    └─ Step 3c: log-delivery-attempt → Firestore
+│
+└─ Step 4: update-reminder-log
+     Write to Firestore: automationLogs/{id}
+       { type: "fee_reminder", month, sentCount, failedCount, triggeredAt }
+```
+
+### Retry Policy
+
+```
+maxAttempts: 3
+backoff: exponential (1 min → 5 min → 15 min)
+onFailure: log to automationLogs with error details
+```
+
+### Message Template
+
+**WhatsApp (parent phone):**
+```
+🔔 Fee Payment Reminder
+
+Dear Parent of {{studentName}},
+
+This is a gentle reminder that the tuition fee for 
+*{{month}}* is pending.
+
+📚 Batch: {{batchNames}}
+💰 Amount Due: ₹{{totalDue}}
+📅 Due Date: {{dueDate}}
+
+Please make the payment at your earliest convenience.
+
+For queries, contact: {{teacherPhone}}
+
+— {{teacherName}} Sir/Ma'am
+```
+
+**FCM Push (student app):**
+```
+Title: 💰 Fee Reminder — {{month}}
+Body:  ₹{{totalDue}} is due for {{batchNames}}. Please pay by {{dueDate}}.
+Data:  { screen: "fees", month: "{{month}}" }
+```
+
+### Schedule Summary
+
+```
+Cron:    0 9 10 * *       Primary reminder (10th)
+Cron:    0 9 20 * *       Second reminder (20th, only overdue ones)
+Manual:  Event-triggered  Teacher clicks "Send Reminder" button
+```
+
+---
+
+## Workflow 2 — Attendance Alert to Parents
+
+### Overview
+
+When a student is marked **absent**, the system immediately notifies the parent via WhatsApp so they are aware.
+
+### Trigger
+
+| Property | Value |
+|---|---|
+| Type | **Event-driven** |
+| Event | `attendance/marked` (fired after `POST /attendance/:batchId` succeeds) |
+| Payload | `{ batchId, date, records: [{studentId, status}], teacherId }` |
+
+```
+Teacher marks attendance
+  → API writes to Firestore
+  → API emits event: attendance/marked
+  → Inngest receives event
+  → Fan-out: one sub-job per absent student
+```
+
+### Workflow Steps
+
+```
+[EVENT]: attendance/marked
+│
+├─ Step 1: filter-absent-students
+│    Filter records: status == "absent"
+│    If none → exit early (no-op)
+│
+├─ Step 2: fetch-student-details (parallel batch)
+│    For each absentStudentId:
+│      Read Firestore: students/{id} → { name, parentPhone, fcmToken }
+│
+├─ Step 3: send-alerts (parallel)
+│    For each absent student:
+│    ├─ Step 3a: send-whatsapp → parentPhone
+│    └─ Step 3b: log-alert → Firestore automationLogs
+│
+└─ Step 4: no-duplicate-guard
+     Check: was an alert already sent today for this student+batch?
+     (Idempotency key: teacherId + batchId + studentId + date)
+     If yes → skip silently
+```
+
+### Retry Policy
+
+```
+maxAttempts: 3
+backoff: exponential (30s → 2 min → 8 min)
+timeout: 10 minutes total per workflow
+```
+
+### Message Template
+
+**WhatsApp (parent):**
+```
+📋 Attendance Update
+
+Dear Parent of {{studentName}},
+
+Your child was marked *ABSENT* in today's class.
+
+📚 Batch: {{batchName}}
+📅 Date: {{date}} ({{dayOfWeek}})
+⏰ Class Time: {{classTime}}
+
+If this is an error, please contact the teacher.
+
+— {{teacherName}} Sir/Ma'am
+({{teacherPhone}})
+```
+
+> **Note:** Only fires for `absent`. `present` and `holiday` do not trigger alerts (prevents notification fatigue).
+
+---
+
+## Workflow 3 — Test / Exam Reminder
+
+### Overview
+
+Remind students about upcoming tests 2 days before and again the morning of the test. Teacher creates a test event from the dashboard; the workflow is scheduled automatically.
+
+### Trigger
+
+| Property | Value |
+|---|---|
+| Type | **Event-driven + delayed steps** |
+| Event | `test/created` (fired when teacher saves a test) |
+| Payload | `{ testId, batchId, subject, date, time, topics[], teacherId }` |
+
+```
+Teacher creates test → Event: test/created
+  → Workflow starts
+  → Step 1: sleep until (testDate - 2 days) at 18:00 IST
+  → Step 2: send 2-day-before reminder
+  → Step 3: sleep until (testDate) at 07:30 IST
+  → Step 4: send morning-of reminder
+```
+
+### Workflow Steps
+
+```
+[EVENT]: test/created
+│
+├─ Step 1: validate-and-store
+│    Read batch → get enrolled studentIds, parentPhones, FCM tokens
+│    Store workflow state: testId, batchId, date, topics
+│
+├─ Step 2: sleep → until testDate - 2 days @ 18:00 IST
+│    (Inngest native sleep, durable — survives restarts)
+│
+├─ Step 3: send-2day-reminder (parallel fan-out)
+│    For each student:
+│    ├─ send WhatsApp → parentPhone
+│    └─ send FCM push → student device
+│
+├─ Step 4: sleep → until testDate @ 07:30 IST
+│
+├─ Step 5: send-morning-reminder (parallel fan-out)
+│    Same as Step 3 but with "today is your test!" tone
+│
+├─ Step 6: send-post-test-check (optional)
+│    sleep → until testDate + 3 days
+│    Teacher prompted to enter results if no result submitted
+│
+└─ Step 7: log-completion
+     Write automationLog: type "test_reminder", testId, sentCount
+```
+
+### Interrupt / Cancel
+
+```
+[EVENT]: test/cancelled or test/rescheduled
+  → Cancel sleeping workflow using Inngest cancellation API
+  → If rescheduled: re-queue new workflow with updated date
+```
+
+### Message Templates
+
+**2-Day Before (WhatsApp — parent):**
+```
+📝 Test Reminder — {{subject}}
+
+Dear Parent of {{studentName}},
+
+A test is scheduled in *2 days*.
+
+📚 Batch: {{batchName}}
+📅 Date: {{testDate}} ({{dayOfWeek}})
+⏰ Time: {{testTime}}
+📖 Topics: {{topics}}
+
+Please ensure your child is prepared.
+
+— {{teacherName}} Sir/Ma'am
+```
+
+**Morning Of (FCM Push — student):**
+```
+Title: 📝 Test Today — {{subject}}
+Body:  Your {{subject}} test is at {{testTime}}. Topics: {{topicsSummary}}. All the best! 🎯
+Data:  { screen: "tests", testId: "{{testId}}" }
+```
+
+### Schedule Summary
+
+```
+Event: test/created       → Workflow starts immediately, sleeps internally
+Event: test/cancelled     → Workflow cancelled
+Event: test/rescheduled   → Old workflow cancelled, new one queued
+Reminder 1: testDate - 2d @ 18:00 IST  (WhatsApp + FCM)
+Reminder 2: testDate @ 07:30 IST       (WhatsApp + FCM)
+```
+
+---
+
+## Workflow 4 — Announcement Broadcast
+
+### Overview
+
+When a teacher publishes an announcement, the system broadcasts it to all target recipients via the selected channels (in-app, WhatsApp) in parallel, with delivery tracking.
+
+### Trigger
+
+| Property | Value |
+|---|---|
+| Type | **Event-driven** (immediate or scheduled) |
+| Event | `announcement/published` |
+| Payload | `{ announcementId, teacherId, targetBatchId, channels[], scheduledAt }` |
+
+```
+Teacher creates announcement → POST /announcements
+  If scheduledAt == null:
+    → Emit: announcement/published immediately
+  If scheduledAt != null:
+    → Inngest sleeps until scheduledAt, then fires
+```
+
+### Workflow Steps
+
+```
+[EVENT]: announcement/published
+│
+├─ Step 1: fetch-announcement
+│    Read Firestore: announcements/{id} → title, message, targetBatchId, channels
+│
+├─ Step 2: resolve-recipients
+│    If targetBatchId:
+│      → Fetch enrolled students of that batch
+│    Else:
+│      → Fetch ALL active students of the teacher
+│    Build list: [{ name, parentPhone, fcmToken, studentPhone }]
+│
+├─ Step 3: fan-out by channel (parallel)
+│    ├─ [if "whatsapp"]: generate-wa-links (Step 3a)
+│    │    Build wa.me deep-link for each parentPhone
+│    │    Store links in announcement.whatsappLinks[]
+│    │
+│    └─ [if "inapp"]: send-fcm-batch (Step 3b)
+│         Batch FCM multicast (up to 500 tokens per call)
+│         Log delivery receipt per token
+│
+├─ Step 4: update-announcement-status
+│    Write: { status: "sent", sentAt, recipientCount, fcmDelivered, fcmFailed }
+│
+└─ Step 5: log-audit
+     Write automationLog: type "announcement", announcementId, channels, sentCount
+```
+
+### Message Template
+
+**FCM Push (in-app notification):**
+```
+Title: 📢 {{title}}
+Body:  {{messageTruncated150}}
+Data:  { screen: "announcements", id: "{{announcementId}}" }
+```
+
+**WhatsApp (deep links — teacher sends manually via generated links):**
+```
+📢 *{{title}}*
+
+{{message}}
+
+— {{teacherName}} Sir/Ma'am
+```
+
+> **WhatsApp note**: The system generates pre-filled `wa.me` links (one per parent). The teacher opens WhatsApp and taps "Send" — no WhatsApp Business API required for Phase 1. Phase 2 can upgrade to Cloud API for fully automated sends.
+
+### Schedule Support
+
+```
+Immediate:   scheduledAt == null → fires on publish
+Scheduled:   scheduledAt set    → Inngest sleeps, fires at scheduledAt
+Recurrence:  Not supported in v1 (future: RRULE-based cron per announcement)
+```
+
+---
+
+## Workflow 5 — Payment Confirmation Message
+
+### Overview
+
+When a fee record is marked as **paid** or **partial**, automatically send a payment receipt / confirmation to the student's parent via WhatsApp.
+
+### Trigger
+
+| Property | Value |
+|---|---|
+| Type | **Event-driven** |
+| Event | `fee/payment.recorded` |
+| Payload | `{ feeRecordId, studentId, batchId, amount, paidAmount, paymentMode, paidAt, teacherId }` |
+
+```
+Teacher marks fee as paid → PATCH /fees/:id/pay
+  → API updates Firestore
+  → API emits: fee/payment.recorded
+  → Inngest receives event → sends confirmation
+```
+
+### Workflow Steps
+
+```
+[EVENT]: fee/payment.recorded
+│
+├─ Step 1: fetch-details (parallel)
+│    ├─ Read FeeRecord: amount, paidAmount, balance, month, paymentMode
+│    ├─ Read Student: name, parentPhone, fcmToken
+│    └─ Read Teacher: name, phone
+│
+├─ Step 2: determine-receipt-type
+│    If balance == 0 → type: "full_payment"
+│    If balance > 0  → type: "partial_payment"
+│
+├─ Step 3: send-confirmation (parallel)
+│    ├─ Step 3a: send-whatsapp → parentPhone
+│    └─ Step 3b: send-fcm-push → student device (if token exists)
+│
+├─ Step 4: generate-receipt-id
+│    receiptId = "REC-{{teacherCode}}-{{YYYYMM}}-{{feeRecordId_last6}}"
+│
+└─ Step 5: log-confirmation
+     Write automationLog: type "payment_confirmation", feeRecordId, receiptId
+     Update FeeRecord: { lastReceiptSentAt, receiptId }
+```
+
+### Message Templates
+
+**Full Payment — WhatsApp (parent):**
+```
+✅ Payment Received
+
+Dear Parent of {{studentName}},
+
+We have received your fee payment. Thank you!
+
+🆔 Receipt No: {{receiptId}}
+📚 Batch: {{batchName}}
+🗓️ For Month: {{month}}
+💰 Amount Paid: ₹{{paidAmount}}
+💳 Mode: {{paymentMode}}
+📅 Date: {{paidAt}}
+
+Your balance is: *₹0 (Cleared)* ✔️
+
+— {{teacherName}} Sir/Ma'am
+({{teacherPhone}})
+```
+
+**Partial Payment — WhatsApp (parent):**
+```
+💳 Partial Payment Recorded
+
+Dear Parent of {{studentName}},
+
+We have recorded your partial fee payment.
+
+🆔 Receipt No: {{receiptId}}
+📚 Batch: {{batchName}}
+🗓️ For Month: {{month}}
+💰 Amount Paid: ₹{{paidAmount}}
+💰 Total Fee:  ₹{{totalAmount}}
+⚠️ Balance Due: *₹{{balance}}*
+💳 Mode: {{paymentMode}}
+
+Please clear the remaining amount at the earliest.
+
+— {{teacherName}} Sir/Ma'am
+({{teacherPhone}})
+```
+
+**FCM Push (student app):**
+```
+Title: ✅ Payment Confirmed — {{month}}
+Body:  ₹{{paidAmount}} received for {{batchName}}. Receipt: {{receiptId}}
+Data:  { screen: "fees", feeRecordId: "{{feeRecordId}}" }
+```
+
+---
+
+## Cross-Cutting Concerns
+
+### Delivery Channel Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│               Notification Dispatcher Service            │
+│                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌────────────────┐  │
+│  │  WhatsApp   │  │  FCM Push   │  │  SMS (Twilio)  │  │
+│  │ (wa.me link │  │  (Firebase) │  │  (fallback)    │  │
+│  │  or Cloud   │  │             │  │                │  │
+│  │    API)     │  │             │  │                │  │
+│  └─────────────┘  └─────────────┘  └────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Opt-Out / DND Respect
+
+Every student/parent record has an `optOut{}` field in Firestore:
+```json
+{
+  "optOut": {
+    "whatsapp": false,
+    "sms": false,
+    "push": false,
+    "feeReminders": false
+  }
+}
+```
+All workflows check `optOut` before sending. Workflow skips silently with a log entry.
+
+### Rate Limiting / Anti-Spam
+
+| Rule | Limit |
+|---|---|
+| WhatsApp messages per parent per day | Max 5 |
+| FCM push per student per day | Max 8 |
+| Any single workflow run duration | 30 minutes |
+| WhatsApp Cloud API sends per teacher per day | 1,000 (Business API limit) |
+
+### Automation Log Schema (Firestore)
+
+```
+automationLogs/{logId}
+  teacherId: string
+  type: "fee_reminder" | "attendance_alert" | "test_reminder"
+        | "announcement" | "payment_confirmation"
+  status: "success" | "partial" | "failed"
+  sentCount: number
+  failedCount: number
+  triggeredAt: Timestamp
+  completedAt: Timestamp
+  metadata: { month?, batchId?, testId?, announcementId?, feeRecordId? }
+```
+
+### Inngest Event Registry
+
+| Event Name | Fired By | Consumed By |
+|---|---|---|
+| `attendance/marked` | Attendance API | Workflow 2 |
+| `test/created` | Tests API | Workflow 3 |
+| `test/cancelled` | Tests API | Workflow 3 (cancel) |
+| `test/rescheduled` | Tests API | Workflow 3 (reschedule) |
+| `announcement/published` | Announcements API | Workflow 4 |
+| `fee/payment.recorded` | Fees API | Workflow 5 |
+| `fee/reminder.requested` | Manual trigger (UI) | Workflow 1 |
+
+---
+
+## Summary Table
+
+| # | Workflow | Trigger Type | Primary Channel | Schedule |
+|---|---|---|---|---|
+| 1 | Fee Reminder | Cron + Manual | WhatsApp + FCM | 10th & 20th of month @ 09:00 IST |
+| 2 | Attendance Alert | Event (real-time) | WhatsApp | Immediate on attendance mark |
+| 3 | Test Reminder | Event + Sleep | WhatsApp + FCM | -2 days @ 18:00, test day @ 07:30 IST |
+| 4 | Announcement Broadcast | Event (immediate/scheduled) | FCM + WhatsApp links | On publish or scheduled time |
+| 5 | Payment Confirmation | Event (real-time) | WhatsApp + FCM | Immediate on payment record |

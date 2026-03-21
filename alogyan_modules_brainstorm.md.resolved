@@ -1,0 +1,238 @@
+# Alogyan — Modules & Features Brainstorm
+
+## Understanding Lock ✅
+
+| Key | Value |
+|-----|-------|
+| **What** | Teacher CMS + Public Discovery Platform for tutors & small institutes |
+| **Why** | Help non-technical teachers manage students, fees, attendance, tests & notes in one place, and get discovered by new students |
+| **Who** | Primary: Individual teachers / small coaching institutes. Secondary: Students + Parents (public pages only) |
+| **Constraints** | No built-in payment gateway (teachers use their own UPI/cash). Tests module needs both online Q&A creation AND offline PDF+score entry |
+| **Student–Batch model** | Students exist globally under a teacher account, assigned to batches per term (many-to-many) |
+| **Non-Goals** | Native mobile app (MVP), multi-teacher org accounts (later), built-in payment processing |
+
+---
+
+## Decision Log
+
+| # | Decision | Alternatives | Reason |
+|---|----------|-------------|--------|
+| 1 | Students are global, assigned to batches per term | Student per batch only | Flexible re-enrollment, avoids data duplication |
+| 2 | No built-in payment gateway | Razorpay/Stripe integration | Teachers already use their own UPI; reduces compliance scope for MVP |
+| 3 | Tests = online creation + PDF upload + manual score entry | Online only | Matches hybrid Indian classroom reality |
+
+---
+
+## Full Module Map
+
+### 1. 🏠 Dashboard
+**Purpose:** Landing screen. Instant glance at what needs attention today.
+
+| Feature | Detail |
+|---------|--------|
+| Today's Attendance Summary | % present across all batches |
+| Fee Alerts | Count of students with overdue fees |
+| Upcoming Classes | Next 3 scheduled timeslots |
+| New Leads | Unread enquiries from public profile |
+| Recent Activity Feed | Last 5 actions (marked paid, added student, etc.) |
+| Quick Action Buttons | + Add Student, + New Batch, + Mark Attendance, + Record Fee |
+| Zero State | Onboarding checklist for new teachers (Create Batch → Add Students → first attendance) |
+
+---
+
+### 2. 👤 Students
+**Purpose:** Global student roster for the teacher account.
+
+| Feature | Detail |
+|---------|--------|
+| Student List | Name, Phone, Parent Phone, Grade, Active Batches, Fee Status badge |
+| Add Student | Modal: Name, Phone, Parent Phone, Grade, Address (optional) |
+| Student Profile | Individual page: bio, batch history, attendance %, fee history, test scores, notes |
+| Bulk Import | CSV upload with column mapping |
+| Archive / Deactivate | Soft-delete; archived students don't appear in active lists |
+| Search & Filter | By name, batch, fee status, grade |
+| Export | Download student list as CSV/PDF |
+
+---
+
+### 3. 📚 Batches
+**Purpose:** Organize students into class groups (the core CMS unit).
+
+| Feature | Detail |
+|---------|--------|
+| Batch List | Name, Subject, Schedule, Student Count, Status (Active/Paused/Closed) |
+| Create Batch | Name, Subject, Days+Time, Fees per month, Max Seats, Description |
+| Batch Detail | Student roster for that batch, attendance history, fee collection status |
+| Assign Students | Add/remove students from batch (multi-select picker) |
+| Batch Schedule | Recurring schedule (e.g., Mon/Wed/Fri 5–7 PM) |
+| Pause / Archive Batch | Stops appearing in active UI without losing historical data |
+| Clone Batch | Duplicate batch settings for next term |
+
+---
+
+### 4. ✅ Attendance
+**Purpose:** Mark and track daily attendance per batch.
+
+| Feature | Detail |
+|---------|--------|
+| Quick Mark Screen | Tap Present/Absent for each student in a batch (large touch targets) |
+| Bulk Mark All Present | One-tap, then individual corrections |
+| Date Picker | Mark attendance retroactively (if teacher forgot) |
+| Attendance History | Calendar view per batch — green/red per day |
+| Per-Student Report | % attendance this month/term, total classes |
+| Absent Alerts | Optional: auto-SMS to parent when student is absent (if phone integrated) |
+| Holiday Marking | Mark a date as holiday — excluded from attendance calculation |
+
+---
+
+### 5. 💰 Fees
+**Purpose:** Track who has paid and who owes — no built-in payment processing.
+
+| Feature | Detail |
+|---------|--------|
+| Fee Overview | Per-batch or all-students view: Paid / Pending / Overdue counts |
+| Generate Fee Request | Set amount + due date for a batch (creates pending records for all students) |
+| Mark Paid | Select mode: Cash / UPI / Cheque / Other. Date + optional memo |
+| Partial Payment | Record partial amount paid, show remaining balance |
+| Fee History | Per student: full transaction log |
+| Custom Fee Amount | Override per-student if different from batch default |
+| Dues Report | Export list of students with outstanding fees |
+| Optional: Share Payment Info | Teacher can paste their own UPI ID/QR — displayed to parents on their receipt |
+
+---
+
+### 6. 📄 Notes
+**Purpose:** Upload and share study material with students/batches.
+
+| Feature | Detail |
+|---------|--------|
+| Upload Notes | PDF, Images, Word docs; linked to a specific batch or 'All Batches' |
+| Notes List | Title, Subject, Date uploaded, Batch, Download button |
+| Student-Facing View | (via login or public link) — students access their batch notes |
+| Organize by Subject/Topic | Folders or tags per subject area |
+| Delete / Replace | Manage uploaded documents |
+
+---
+
+### 7. 📝 Tests
+**Purpose:** Create, assign, and track test results. Two modes:
+
+#### Mode A — Online Test (Question Creator)
+| Feature | Detail |
+|---------|--------|
+| Create Test | Title, Subject, Batch, Date, Duration, Total Marks |
+| Add Questions | MCQ, Short Answer, True/False question types |
+| Assign to Batch | Students receive notification; can take test via their student link |
+| Auto-Grading | MCQ auto-scored; short answers need manual review |
+| Results Dashboard | Average score, top performers, below-threshold alerts |
+
+#### Mode B — Offline Test (PDF + Manual Scoring)
+| Feature | Detail |
+|---------|--------|
+| Upload Test Paper | PDF upload (optional) |
+| Enter Scores | Table: student name + score input per student |
+| Score Summary | Average, highest, lowest, rank list |
+| Export Results | PDF marksheet / CSV |
+
+---
+
+### 8. 📊 Reports
+**Purpose:** Aggregated analytics for the teacher.
+
+| Feature | Detail |
+|---------|--------|
+| Attendance Report | Per batch or per student — monthly trend |
+| Fee Collection Report | Total collected vs. total pending this month |
+| Test Performance Report | Average scores per batch, subject trends |
+| Student Progress Report | Combined: Attendance % + Fee status + Test avg for each student |
+| Export | PDF/CSV download for all report types |
+| Date Range Filter | Custom date range selector |
+
+---
+
+### 9. 📢 Announcements
+**Purpose:** Broadcast messages to students/parents.
+
+| Feature | Detail |
+|---------|--------|
+| Create Announcement | Title, Message, Target (All / Specific Batch) |
+| Channels | In-app feed + WhatsApp (via wa.me link generation) + SMS (optional) |
+| Schedule | Post now or schedule for later |
+| Announcement History | List of past broadcasts + delivery status |
+| Pin Announcement | Pin important notices to top of student feed |
+
+---
+
+### 10. 🌐 Public Profile (Teacher Page)
+**Purpose:** SEO-indexed page for student discovery.
+
+| Feature | Detail |
+|---------|--------|
+| Teacher Hero | Photo, Name, Subjects, Tagline, Location |
+| About Me | Rich text bio + years of experience |
+| Qualifications | Inline list (B.Ed, M.Sc, etc.) |
+| Gallery | Photos of classroom, results screenshots |
+| Open Batches | Cards for batches with vacancies — "X seats left" |
+| Testimonials | Teacher adds student/parent reviews |
+| Enquiry Form | Lead capture: Name, Phone, Grade, Message → notifies teacher dashboard |
+| Sticky CTA | "Enquire Now" always visible on mobile scroll |
+| Share Profile | Shareable URL + QR Code generator |
+| Verified Badge | Shown after admin approval |
+
+---
+
+### 11. 🔍 Search & Discovery
+**Purpose:** Landing page for prospective students to find teachers.
+
+| Feature | Detail |
+|---------|--------|
+| Search Bar | By subject, location, grade |
+| Filters | Subject, Location, Fee Range, Rating, Availability |
+| Teacher Cards | Photo, Name, Subjects, Rating, Location, "View Profile" CTA |
+| Featured / Promoted | Optional paid slot for teachers to appear at top |
+| SEO-Optimized URLs | `/teachers/math/mumbai` style landing pages |
+
+---
+
+### 12. ⚙️ Settings (Teacher Account)
+> **New module — not in original folders but essential.**
+
+| Feature | Detail |
+|---------|--------|
+| Profile Settings | Edit name, photo, bio, subjects, location |
+| Notification Preferences | Toggle SMS / WhatsApp alerts |
+| Subscription Plan | View current plan (Free/Pro), upgrade CTA |
+| Connected Apps | (Future: WhatsApp Business, Google Calendar) |
+| Danger Zone | Delete account, export all data |
+
+---
+
+### 13. 🛡️ Admin Panel (Internal)
+**Purpose:** Alogyan staff CRM.
+
+| Feature | Detail |
+|---------|--------|
+| Teacher Verification Queue | Approve/reject with ID proof side-by-side view |
+| User Management | Search by phone/ID, view full account, suspend/reactivate |
+| Subscription Management | View MRR, active plans, manual plan adjustments |
+| Support Tickets | Internal notes on teacher accounts |
+| Platform Announcements | Broadcast to all teachers |
+| Analytics | New signups/day, active teachers, churn |
+
+---
+
+## 💡 Suggested Additions (Beyond Original Plan)
+
+| # | Idea | Why |
+|---|------|-----|
+| 1 | **Student/Parent Login Portal** | Students access their own notes, test results, fee receipts |
+| 2 | **Settings Module** | Essential for profile edits + plan management — currently missing from folder structure |
+| 3 | **WhatsApp Integration (wa.me links)** | Already in UX flows — formalise as a first-class feature, not just a button |
+| 4 | **Notifications Center** | In-app feed for leads, payment alerts, system messages |
+| 5 | **Leads / Enquiries Module** | Dedicated space to manage enquiries from public profile (Accept → Convert to Student) |
+
+---
+
+## Next Step
+
+> "Does this accurately reflect your intent? Please confirm or correct anything before we finalize and begin implementation planning."

@@ -1,0 +1,112 @@
+.sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.logoIcon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logoName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.logoSub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* Nav */
+.nav {
+  flex: 1;
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+}
+.navItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.navItem.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+.activeBar {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background: var(--primary);
+  border-radius: 2px 0 0 2px;
+}
+
+/* Footer */
+.footer {
+  padding: 8px 10px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  width: 100%;
+  text-align: left;
+}
+.logoutBtn:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}

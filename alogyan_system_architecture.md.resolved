@@ -1,0 +1,610 @@
+# Alogyan — System Architecture
+
+> Stack: Next.js · Node.js · Firebase Firestore · Firebase Auth · Redis
+
+---
+
+## 1. Project Classification
+
+| Dimension | Classification | Rationale |
+|-----------|---------------|-----------|
+| Scale | **SaaS (1K–100K users)** | Growing teacher platform, not a startup MVP |
+| Architecture | **Modular Monolith** | 1–5 dev team; microservices not justified |
+| Domain Complexity | **Medium** | CRUD-heavy + business rules (fee calc, attendance %) |
+| Real-time need | **Low** | Eventual consistency acceptable; polling acceptable |
+| Pattern | **Partial DDD + Repository** | Rich entities, clear module boundaries |
+
+---
+
+## 2. System Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                             │
+│                                                                 │
+│  ┌──────────────────────┐    ┌──────────────────────────────┐  │
+│  │  Next.js App (SSR)   │    │    Public Pages (SSG/ISR)    │  │
+│  │  Teacher Dashboard   │    │  /teachers/[slug] Discovery  │  │
+│  │  /dashboard/*        │    │  /search (ISR)               │  │
+│  └──────────┬───────────┘    └──────────────┬───────────────┘  │
+└─────────────┼────────────────────────────────┼─────────────────┘
+              │  HTTPS                          │ HTTPS
+              ▼                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     API GATEWAY LAYER                           │
+│         Next.js API Routes (Edge Middleware for Auth)           │
+│         Route: /api/v1/*   →   Node.js Backend Service         │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  NODE.JS BACKEND (Express / Fastify)            │
+│                      Modular Monolith                           │
+│                                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │ Teachers │  │ Students │  │ Batches  │  │  Attendance   │  │
+│  │ Module   │  │ Module   │  │ Module   │  │  Module       │  │
+│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │   Fees   │  │  Notes   │  │ Reports  │  │Announcements  │  │
+│  │ Module   │  │ Module   │  │ Module   │  │  Module       │  │
+│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘  │
+│                                                                 │
+│           Shared: Auth Middleware · Validation · Logger         │
+└──────────┬───────────────────────────────────────┬─────────────┘
+           │                                       │
+           ▼                                       ▼
+┌──────────────────────┐              ┌────────────────────────┐
+│  Firebase Firestore  │              │    Redis Cache         │
+│  (Primary Data Store)│              │  (Sessions, Hot Data)  │
+│  + Firebase Storage  │              │                        │
+│  (Notes / Avatars)   │              └────────────────────────┘
+└──────────────────────┘
+           │
+           ▼
+┌──────────────────────┐
+│  Firebase Auth       │
+│  (Identity Provider) │
+└──────────────────────┘
+```
+
+---
+
+## 3. Frontend Architecture (Next.js)
+
+### App Router Structure
+
+```
+app/
+├── (public)/                   # No auth required
+│   ├── page.tsx                # Landing page
+│   ├── search/page.tsx         # Teacher discovery (ISR)
+│   └── teachers/[slug]/page.tsx # Public teacher profile (SSG+ISR)
+│
+├── (auth)/                     # Auth pages (no sidebar)
+│   ├── login/page.tsx
+│   └── onboarding/page.tsx
+│
+├── (dashboard)/                # Protected — Firebase Auth gate
+│   ├── layout.tsx              # Sidebar + Header shell
+│   ├── page.tsx                # Dashboard home
+│   ├── students/
+│   ├── batches/
+│   ├── attendance/
+│   ├── fees/
+│   ├── notes/
+│   ├── tests/
+│   ├── reports/
+│   └── announcements/
+│
+└── api/                        # API proxies + Next.js edge middleware
+    └── v1/[...path]/route.ts   # Proxy to Node.js backend
+```
+
+### Rendering Strategy
+
+| Route | Strategy | Why |
+|-------|----------|-----|
+| `/` | Static | Marketing, infrequent changes |
+| `/search` | ISR (1hr) | SEO + fresh data |
+| `/teachers/[slug]` | ISR (15min) | SEO critical, changes infrequently |
+| `/dashboard/*` | CSR (client hydrated) | Private data, auth-gated |
+| `/dashboard/reports` | SSR | Fresh aggregated data on request |
+
+### State Management
+
+```
+Client State (Zustand):
+  - UI state (sidebar open/closed, modals)
+  - Current teacher context
+  - Selected batch / filters
+
+Server State (TanStack Query):
+  - All API data (students, batches, fees...)
+  - Automatic background refetch
+  - Optimistic updates for mutations (e.g., mark paid)
+
+Auth State (Firebase Auth SDK):
+  - onAuthStateChanged listener
+  - Token stored in cookie (for SSR hydration)
+```
+
+---
+
+## 4. Backend Modules (Node.js)
+
+### Module Structure Pattern
+
+Each module follows the same folder layout:
+
+```
+modules/
+└── students/
+    ├── students.router.ts      # Express routes
+    ├── students.controller.ts  # Request parsing, response shaping
+    ├── students.service.ts     # Business logic
+    ├── students.repository.ts  # Firestore data access
+    ├── students.schema.ts      # Zod validation schemas
+    └── students.types.ts       # TypeScript interfaces
+```
+
+### Module: Teachers
+```
+Routes:
+  POST   /teachers/              → Create teacher profile (post-auth)
+  GET    /teachers/:id           → Get teacher profile
+  PATCH  /teachers/:id           → Update profile
+  GET    /teachers/:id/dashboard → Dashboard summary (cached)
+  GET    /teachers/slug/:slug    → Public profile by slug
+
+Service:
+  - Profile CRUD
+  - Dashboard KPI aggregation (students count, fees due, today's batches)
+  - Public profile slug generation
+  - Verification status management
+```
+
+### Module: Students
+```
+Routes:
+  GET    /students              → List all students (with filters)
+  POST   /students              → Add single student
+  POST   /students/bulk         → Bulk import via CSV
+  GET    /students/:id          → Student profile + batch history
+  PATCH  /students/:id          → Update student
+  DELETE /students/:id          → Soft-delete (archive)
+
+Service:
+  - Student CRUD
+  - CSV parsing and validation
+  - Batch enrollment history query
+  - Fee status aggregation per student
+```
+
+### Module: Batches
+```
+Routes:
+  GET    /batches               → List batches (active/all)
+  POST   /batches               → Create batch
+  GET    /batches/:id           → Batch detail + enrolled students
+  PATCH  /batches/:id           → Update batch
+  POST   /batches/:id/students  → Assign/unassign students
+  POST   /batches/:id/clone     → Clone batch for new term
+
+Service:
+  - Batch CRUD
+  - Student enrollment management (many-to-many via enrollments collection)
+  - Schedule conflict detection
+  - Seat count tracking (denormalized counter)
+```
+
+### Module: Attendance
+```
+Routes:
+  GET    /attendance/:batchId         → Get attendance for date range
+  POST   /attendance/:batchId         → Mark attendance for a date
+  PATCH  /attendance/:batchId/:date   → Update attendance (retroactive)
+  GET    /attendance/student/:id      → Per-student attendance stats
+
+Service:
+  - Attendance write (upsert per batch+date)
+  - Holiday management
+  - Attendance % calculation (present / (total - holidays))
+  - Monthly summary aggregation (cached in Redis)
+```
+
+### Module: Fees
+```
+Routes:
+  GET    /fees/:batchId              → Fee overview for batch
+  POST   /fees/generate              → Generate fee records for batch
+  POST   /fees/:recordId/pay         → Mark student as paid
+  POST   /fees/:recordId/partial     → Record partial payment
+  GET    /fees/student/:studentId    → Full fee history for student
+  GET    /fees/report                → Dues / collection report
+
+Service:
+  - Fee record generation (bulk create per batch)
+  - Payment recording (cash / UPI / cheque modes)
+  - Partial payment & balance tracking
+  - Overdue detection (past due date, unpaid)
+  - Monthly collection totals
+```
+
+### Module: Notes
+```
+Routes:
+  GET    /notes              → List notes (by batch or all)
+  POST   /notes              → Upload note metadata (after Firebase Storage upload)
+  DELETE /notes/:id          → Delete note + cleanup storage
+
+Service:
+  - Signed URL generation for Firebase Storage uploads
+  - Note metadata CRUD in Firestore
+  - Batch-scoped or teacher-global notes
+```
+
+### Module: Reports
+```
+Routes:
+  GET    /reports/attendance  → Attendance report (date range, batch filter)
+  GET    /reports/fees        → Fee collection report
+  GET    /reports/tests       → Test performance report
+  GET    /reports/students    → Per-student combined report
+
+Service:
+  - Aggregation queries across multiple collections
+  - CSV/PDF export (using pdfkit / fast-csv)
+  - Caching heavy aggregations in Redis (TTL: 1 hour)
+```
+
+### Module: Announcements
+```
+Routes:
+  GET    /announcements          → List announcements
+  POST   /announcements          → Create + send announcement
+  PATCH  /announcements/:id/pin  → Pin/unpin
+
+Service:
+  - Announcement CRUD
+  - WhatsApp message link generation (wa.me/91{phone}?text=...)
+  - Batch-targeted or all-students targeting
+  - Scheduled announcements (Bull queue / Firestore scheduled functions)
+```
+
+---
+
+## 5. Firebase Firestore Data Model
+
+### Collection Structure
+
+```
+firestore/
+├── teachers/{teacherId}
+│   ├── name, phone, email, slug, bio
+│   ├── subjects[], location, photo, isVerified
+│   ├── plan: 'free' | 'pro'
+│   └── createdAt, updatedAt
+│
+├── students/{studentId}
+│   ├── teacherId (owner)
+│   ├── name, phone, parentPhone, grade, address
+│   ├── isArchived: boolean
+│   └── createdAt
+│
+├── batches/{batchId}
+│   ├── teacherId
+│   ├── name, subject, schedule: {days[], time, duration}
+│   ├── feesPerMonth, maxSeats, currentSeats (counter)
+│   ├── status: 'active' | 'paused' | 'closed'
+│   └── term: string (e.g., "2024-Q1")
+│
+├── enrollments/{enrollmentId}          ← Junction: Student ↔ Batch
+│   ├── teacherId, studentId, batchId
+│   ├── enrolledAt, leftAt (null if active)
+│   └── isActive: boolean
+│
+├── attendance/{attendanceId}           ← Keyed: batchId_date
+│   ├── teacherId, batchId, date (YYYY-MM-DD)
+│   ├── records: { [studentId]: 'present' | 'absent' | 'holiday' }
+│   └── markedAt
+│
+├── feeRecords/{feeRecordId}
+│   ├── teacherId, studentId, batchId
+│   ├── amount, dueDate, month (YYYY-MM)
+│   ├── status: 'pending' | 'partial' | 'paid' | 'overdue'
+│   ├── paidAmount, paidAt, paymentMode: 'cash'|'upi'|'cheque'|'other'
+│   └── memo: string (optional)
+│
+├── notes/{noteId}
+│   ├── teacherId, batchId (null = all batches)
+│   ├── title, subject, storageUrl, fileType
+│   └── uploadedAt
+│
+├── tests/{testId}
+│   ├── teacherId, batchId
+│   ├── title, subject, date, totalMarks, type: 'online' | 'offline'
+│   ├── questions[]: [{text, options[], correct, marks}]  (online only)
+│   └── pdfUrl: string (offline only)
+│
+├── testResults/{resultId}
+│   ├── testId, studentId, teacherId
+│   ├── score, maxScore, submittedAt
+│   └── answers: {} (online only)
+│
+├── announcements/{announcementId}
+│   ├── teacherId, targetBatchId (null = all)
+│   ├── title, message, channels: ['inapp', 'whatsapp']
+│   ├── isPinned: boolean
+│   └── scheduledAt, sentAt
+│
+└── leads/{leadId}
+    ├── teacherId, name, phone, grade, message
+    ├── status: 'new' | 'contacted' | 'enrolled' | 'rejected'
+    └── receivedAt
+```
+
+### Firestore Indexes Required
+
+```yaml
+# Composite indexes (must pre-create)
+students: [teacherId ASC, isArchived ASC, createdAt DESC]
+enrollments: [teacherId ASC, batchId ASC, isActive ASC]
+attendance: [teacherId ASC, batchId ASC, date DESC]
+feeRecords: [teacherId ASC, status ASC, dueDate ASC]
+feeRecords: [teacherId ASC, studentId ASC, month DESC]
+leads: [teacherId ASC, status ASC, receivedAt DESC]
+```
+
+---
+
+## 6. Redis Caching Strategy
+
+```
+Cache Topology: Single Redis instance (MVP) → Redis Cluster (scale)
+
+┌─────────────────────────────────────────────────────────────┐
+│  Key Pattern              │  TTL    │  What's cached         │
+├───────────────────────────┼─────────┼───────────────────────┤
+│  dashboard:{teacherId}    │  5 min  │  KPI summary object    │
+│  attendance:{batchId}:{M} │  1 hr   │  Monthly % per student │
+│  report:fees:{teacherId}  │  1 hr   │  Fee collection totals │
+│  report:tests:{batchId}   │  2 hr   │  Test averages         │
+│  profile:public:{slug}    │  15 min │  Public profile page   │
+│  session:{userId}         │  24 hr  │  Firebase token + role │
+└───────────────────────────┴─────────┴───────────────────────┘
+
+Cache Invalidation:
+  - On any write to attendance → invalidate attendance:{batchId}:*
+  - On fee marked paid → invalidate dashboard:{teacherId}, report:fees:{teacherId}
+  - On profile update → invalidate profile:public:{slug}
+  - Use event emitter in service layer to trigger invalidation
+```
+
+---
+
+## 7. Data Flow Diagrams
+
+### 7.1 Teacher Marks Attendance
+
+```
+Teacher (UI)
+  │  POST /api/v1/attendance/:batchId
+  ▼
+Next.js API Route (Edge Middleware)
+  │  Verify Firebase ID Token → Extract teacherId
+  ▼
+Node.js Attendance Controller
+  │  Validate: batchId belongs to teacherId, date is valid
+  ▼
+Attendance Service
+  │  Upsert document: attendance/{batchId}_{date}
+  ▼
+Attendance Repository
+  │  Firestore batch write (atomic)
+  ▼
+Redis Cache Invalidation
+  │  DEL attendance:{batchId}:{YYYY-MM}
+  ▼
+Response: 200 OK → UI updates optimistically
+```
+
+### 7.2 Student Submits Lead from Public Profile
+
+```
+Student (Public Profile Page)
+  │  POST /api/v1/leads  (no auth required — rate-limited by IP)
+  ▼
+Next.js API Route
+  │  Rate check: max 3 leads/IP/hour (Redis counter)
+  ▼
+Node.js Leads Controller
+  │  Validate: name, phone, teacherId
+  ▼
+Leads Service
+  │  Write to leads/{leadId}
+  ▼
+Firestore
+  │  Triggers Firestore onWrite hook
+  ▼
+Cloud Function (Firebase)
+  │  Sends in-app notification to teacher dashboard
+  ▼
+Teacher Dashboard (polling/SSE)
+  │  "New Lead" badge appears
+```
+
+### 7.3 Teacher Generates Fee Records
+
+```
+Teacher
+  │  POST /api/v1/fees/generate  { batchId, amount, dueDate, month }
+  ▼
+Fees Controller → Fees Service
+  │  1. Fetch active enrollments for batchId
+  │  2. Filter: skip students with existing record for this month
+  │  3. Batch-create feeRecords (Firestore batch write, max 500/batch)
+  ▼
+Firestore (feeRecords collection)
+  │  N new documents created
+  ▼
+Redis Invalidation
+  │  DEL dashboard:{teacherId}, DEL report:fees:{teacherId}
+  ▼
+Response: { created: N, skipped: M }
+```
+
+---
+
+## 8. Architecture Decision Records (ADRs)
+
+### ADR-001: Modular Monolith over Microservices
+
+| | |
+|--|--|
+| **Decision** | Single deployable Node.js backend with module boundaries |
+| **Alternatives** | Microservices per module |
+| **Rationale** | Team ≤ 5 devs, modules share teacher context, no independent scaling needed |
+| **Consequence** | Module coupling risk → mitigated by strict interface contracts between modules |
+| **Migration path** | Extract fees/reports as separate services if they hit scaling bottlenecks |
+
+### ADR-002: Firestore over PostgreSQL
+
+| | |
+|--|--|
+| **Decision** | Firebase Firestore as primary database |
+| **Alternatives** | PostgreSQL (Supabase/Neon) |
+| **Rationale** | Firebase Auth already chosen; Firestore = same ecosystem, no infra management, auto-scaling reads |
+| **Risk** | Complex queries are harder; no JOINs |
+| **Mitigation** | Denormalize strategically (counters in batch doc); aggregate in service layer |
+| **Migration path** | Move to PostgreSQL if query complexity becomes blocking |
+
+### ADR-003: Redis for Session + Hot Data
+
+| | |
+|--|--|
+| **Decision** | Redis for session store + report caching |
+| **Alternatives** | Firestore session doc, no-cache |
+| **Rationale** | Report aggregations are expensive Firestore reads; cache cuts both cost and latency |
+| **TTL policy** | Conservative: 5–120 min. Aggressive invalidation on write |
+
+### ADR-004: ISR for Public Discovery Pages
+
+| | |
+|--|--|
+| **Decision** | Next.js ISR (Incremental Static Regeneration) for /search and /teachers/[slug] |
+| **Alternatives** | SSR on every request, CSR |
+| **Rationale** | SEO critical + data changes infrequently (teacher profiles, not real-time) |
+| **Revalidation** | 15 min for profiles; 1 hr for search index |
+| **Trigger** | On-demand revalidation via Next.js `revalidatePath()` when teacher updates profile |
+
+### ADR-005: No Built-in Payment Gateway
+
+| | |
+|--|--|
+| **Decision** | Fee module is a tracking tool only — no Razorpay/Stripe integration |
+| **Rationale** | Teachers use their own UPI; gateway adds compliance complexity for MVP |
+| **Consequence** | Can add `paymentLinkUrl` field to feeRecords later for external links |
+| **Future** | If demand exists → optional Razorpay module (behind Pro plan feature flag) |
+
+---
+
+## 9. Scaling Strategy
+
+### Phase 1: Launch (0 → 1K teachers)
+```
+Infrastructure:
+  - Next.js: Vercel (hobby → pro)
+  - Node.js: Single instance (Railway / Fly.io)
+  - Firestore: Default limits sufficient
+  - Redis: Upstash (serverless, free tier)
+
+Cost estimate: ~$20–50/month
+Bottleneck: None expected at this scale
+```
+
+### Phase 2: Growth (1K → 10K teachers)
+```
+Changes:
+  - Node.js: 2–3 instances behind load balancer
+  - Redis: Standalone instance (Redis Cloud 100MB)
+  - Add Firestore composite indexes for all query patterns
+  - Implement proper error monitoring (Sentry)
+  - Add DB connection pooling (Firebase Admin SDK pools by default)
+
+Cost estimate: ~$100–300/month
+Bottleneck watch: Report aggregation queries, Firestore read costs
+```
+
+### Phase 3: Scale (10K → 100K teachers)
+```
+Changes:
+  - Extract Reports module as separate service (read-heavy, cacheable)
+  - Add BullMQ queue for async jobs (fee reminders, bulk notifications)
+  - Firestore: Review hot documents (teacher profile = add caching layer)
+  - Redis Cluster for session distribution
+  - Edge caching (Cloudflare) for public profiles
+  - Consider BigQuery for analytics aggregations (Firestore → BigQuery export)
+
+Cost estimate: ~$500–2000/month
+Migration path trigger: P95 response time > 500ms on report endpoints
+```
+
+### Phase 4: Enterprise (100K+ teachers)
+```
+Changes:
+  - Full CQRS for reports (separate read model)
+  - Extract Notifications as event-driven service
+  - Firebase → PostgreSQL migration for relational query needs
+  - Kubernetes (GKE) for backend services
+  - CDN + regional Firestore replicas
+```
+
+---
+
+## 10. Security Architecture
+
+```
+Authentication:
+  - Firebase Auth handles identity (email, phone OTP, Google OAuth)
+  - Backend verifies Firebase ID Token on every request
+  - Tokens expire every 1 hour; refresh handled by Firebase SDK
+
+Authorization:
+  - Role: teacher | admin | student (stored in Firebase Custom Claims)
+  - Every API route checks: token.teacherId === resource.teacherId
+  - Admin routes: separate middleware checking admin claim
+
+Data Isolation:
+  - Every Firestore query mandates teacherId filter
+  - Firestore Security Rules as second layer (defense in depth)
+
+Firestore Security Rules (simplified):
+  match /students/{studentId} {
+    allow read, write: if request.auth.token.teacherId == resource.data.teacherId;
+  }
+
+Rate Limiting:
+  - Redis-based rate limiter on lead submission (IP: 3 req/hr)
+  - Global: 100 req/min per authenticated user
+  - Unauthenticated: 20 req/min per IP
+
+Secrets:
+  - All keys in environment variables (never in code)
+  - Firebase Service Account key via secret manager (Google Secret Manager)
+```
+
+---
+
+## Summary
+
+| Layer | Technology | Pattern |
+|-------|-----------|---------|
+| Frontend | Next.js 14+ App Router | SSG + ISR (public) · CSR (dashboard) |
+| API | Next.js Edge Middleware | Auth verification + proxy |
+| Backend | Node.js (Express/Fastify) | Modular Monolith |
+| Database | Firebase Firestore | Document store with denormalization |
+| File Storage | Firebase Storage | Notes, avatars |
+| Cache | Redis (Upstash MVP) | Session + hot data TTL cache |
+| Auth | Firebase Auth | ID Token verification + Custom Claims |
+| Hosting | Vercel (FE) + Railway/Fly (BE) | Managed PaaS |

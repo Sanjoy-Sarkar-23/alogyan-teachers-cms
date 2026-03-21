@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Reports &amp; Analytics | Alogyan</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e7e8e9",
+                        "secondary-fixed-dim": "#b4cad6",
+                        "primary-fixed": "#ffdad6",
+                        "on-secondary-fixed-variant": "#354a53",
+                        "on-tertiary-container": "#e9f7ff",
+                        "on-tertiary": "#ffffff",
+                        "primary": "#af101a",
+                        "secondary-fixed": "#cfe6f2",
+                        "on-primary-container": "#fff2f0",
+                        "primary-fixed-dim": "#ffb3ac",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed-variant": "#004d65",
+                        "tertiary-fixed": "#bee9ff",
+                        "on-tertiary-fixed": "#001f2a",
+                        "surface-container": "#edeeef",
+                        "tertiary-fixed-dim": "#7bd1f8",
+                        "secondary-container": "#cfe6f2",
+                        "on-surface-variant": "#5b403d",
+                        "on-secondary-fixed": "#071e27",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#005f7b",
+                        "inverse-surface": "#2e3132",
+                        "surface-bright": "#f8f9fa",
+                        "primary-container": "#d32f2f",
+                        "background": "#f8f9fa",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-background": "#191c1d",
+                        "outline-variant": "#e4beba",
+                        "inverse-primary": "#ffb3ac",
+                        "surface": "#f8f9fa",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-dim": "#d9dadb",
+                        "on-primary-fixed-variant": "#930010",
+                        "outline": "#8f6f6c",
+                        "on-surface": "#191c1d",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#e1e3e4",
+                        "surface-tint": "#ba1a20",
+                        "secondary": "#4c616c",
+                        "on-primary-fixed": "#410003",
+                        "on-secondary-container": "#526772",
+                        "tertiary-container": "#00799c"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bg-primary-gradient {
+            background: linear-gradient(135deg, #af101a 0%, #d32f2f 100%);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            color: #191c1d;
+        }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="w-[240px] h-screen sticky top-0 left-0 flex flex-col p-4 bg-slate-50 dark:bg-slate-900 border-r border-slate-200/50 dark:border-slate-800/50 font-['Inter'] antialiased">
+<div class="mb-8 px-4 flex flex-col">
+<span class="text-2xl font-black text-red-700 dark:text-red-500 tracking-tighter">Alogyan</span>
+<span class="text-[10px] uppercase tracking-widest text-slate-400 font-bold -mt-1">Academic Atelier</span>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-sm font-medium">Students</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" href="#">
+<span class="material-symbols-outlined">class</span>
+<span class="text-sm font-medium">Classes</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-xl font-semibold" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="text-sm">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="text-sm font-medium">Schedule</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+<div class="mt-auto p-4 flex items-center gap-3 bg-slate-100 dark:bg-slate-800 rounded-xl">
+<div class="w-10 h-10 rounded-full bg-slate-300 overflow-hidden">
+<img alt="Teacher Profile" class="w-full h-full object-cover" data-alt="A smiling teacher wearing a blazer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLdLVw_DN1d0UAyO0TeU-Ah1Pc9MxZqWWzmgOD0jPOj2vKMBSYR4ADrkgHM5j8hmzLZkxGkx3mHVEN_x_IOuBST1niD58evr5SMOUsJNhnXbq4q4zG916nOekpqA7Ewwy31s3GjoVoKWybTYPpww8Ta5dYr3vM5fQQtKW1TOHQiE5-A5rEIVJiAQyYPRCzZpG2DqCXott8A4EyjLQFKMi9j-WKoVKmuvEpf0OVjv1m5g7wy98lDTLAHxfXkgXPzKJh8eIQHD8bKDQ"/>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold truncate">Prof. Sharma</span>
+<span class="text-[10px] text-slate-500">View Profile</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0">
+<!-- TopNavBar -->
+<header class="h-[72px] sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-between w-full px-8 border-b border-slate-200/15 dark:border-slate-800/15 shadow-sm dark:shadow-none">
+<h1 class="text-2xl font-bold font-headline tracking-tight text-on-background">Reports</h1>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
+<input class="pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 w-64" placeholder="Search reports..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-slate-500">
+<button class="material-symbols-outlined hover:text-primary transition-opacity duration-150">notifications</button>
+<button class="material-symbols-outlined hover:text-primary transition-opacity duration-150">help_outline</button>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<div class="p-10 space-y-10 max-w-[1400px] mx-auto w-full">
+<!-- Page Header Row -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="text-[32px] font-black tracking-tight text-on-background leading-tight">Reports &amp; Analytics</h2>
+<p class="text-slate-500 text-lg font-medium">Get insights into attendance, fees, and performance</p>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-low rounded-xl text-on-surface font-semibold text-sm cursor-pointer hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-lg">calendar_month</span>
+<span>March 2026</span>
+</div>
+<button class="bg-primary-gradient text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Export Report</span>
+</button>
+</div>
+</div>
+<!-- Top Stats Row -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Stat 1: Attendance -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)] flex items-center justify-between">
+<div>
+<p class="text-label-md font-semibold text-slate-400 uppercase tracking-widest text-[10px] mb-2">Avg Attendance Rate</p>
+<h3 class="text-3xl font-black text-on-surface">84%</h3>
+<p class="text-[12px] text-emerald-600 font-bold mt-1">+2% from last month</p>
+</div>
+<div class="relative w-16 h-16">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<circle class="stroke-slate-100" cx="18" cy="18" fill="none" r="16" stroke-width="4"></circle>
+<circle class="stroke-emerald-500" cx="18" cy="18" fill="none" r="16" stroke-dasharray="84, 100" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<span class="absolute inset-0 flex items-center justify-center text-[10px] font-black text-emerald-700">84%</span>
+</div>
+</div>
+<!-- Stat 2: Fee -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<p class="text-label-md font-semibold text-slate-400 uppercase tracking-widest text-[10px] mb-2">Total Fee Collected</p>
+<div class="flex items-baseline gap-2">
+<h3 class="text-3xl font-black text-on-surface">₹38,500</h3>
+<span class="text-slate-400 text-sm font-medium">/ ₹47k</span>
+</div>
+<div class="w-full h-2 bg-slate-100 rounded-full mt-4 overflow-hidden">
+<div class="h-full bg-primary-gradient rounded-full" style="width: 82%"></div>
+</div>
+</div>
+<!-- Stat 3: Tests -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)] flex items-center gap-4">
+<div class="w-12 h-12 bg-primary-fixed rounded-xl flex items-center justify-center text-on-primary-fixed-variant">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">quiz</span>
+</div>
+<div>
+<p class="text-label-md font-semibold text-slate-400 uppercase tracking-widest text-[10px]">Tests Conducted</p>
+<h3 class="text-3xl font-black text-on-surface">14</h3>
+<p class="text-xs font-bold text-slate-500">10 graded</p>
+</div>
+</div>
+<!-- Stat 4: Active Students -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<p class="text-label-md font-semibold text-slate-400 uppercase tracking-widest text-[10px] mb-2">Active Students</p>
+<div class="flex items-center justify-between">
+<h3 class="text-3xl font-black text-on-surface">45<span class="text-slate-300 text-xl font-medium">/48</span></h3>
+<div class="h-10 w-20 flex items-end gap-1">
+<div class="w-2 bg-emerald-100 rounded-t-sm h-1/2"></div>
+<div class="w-2 bg-emerald-200 rounded-t-sm h-3/4"></div>
+<div class="w-2 bg-emerald-300 rounded-t-sm h-2/3"></div>
+<div class="w-2 bg-emerald-500 rounded-t-sm h-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Charts Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- LEFT COLUMN -->
+<div class="space-y-8">
+<!-- Monthly Attendance Trend -->
+<div class="bg-surface-container-lowest p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<div class="flex items-center justify-between mb-8">
+<h4 class="text-xl font-bold tracking-tight">Monthly Attendance Trend</h4>
+<div class="flex gap-4 text-[10px] font-bold uppercase tracking-widest">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-primary"></span> Batch A</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Batch B</span>
+</div>
+</div>
+<div class="h-[240px] relative">
+<!-- Mock Line Chart Visualization -->
+<div class="absolute inset-0 flex items-end justify-between px-2">
+<div class="w-full h-full flex flex-col justify-between absolute left-0 pr-4 border-r border-slate-100 pointer-events-none">
+<span class="text-[10px] text-slate-300">100%</span>
+<span class="text-[10px] text-slate-300">75%</span>
+<span class="text-[10px] text-slate-300">50%</span>
+<span class="text-[10px] text-slate-300">25%</span>
+<span class="text-[10px] text-slate-300">0%</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full relative">
+<svg class="absolute bottom-0 w-full h-full overflow-visible" preserveaspectratio="none">
+<path d="M 0 100 Q 50 20 100 80 T 200 40 T 300 10 T 400 60" fill="none" stroke="#af101a" stroke-linecap="round" stroke-width="3"></path>
+<path d="M 0 120 Q 50 60 100 110 T 200 90 T 300 40 T 400 100" fill="none" stroke="#3b82f6" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+</div>
+</div>
+<div class="absolute -bottom-6 w-full flex justify-between px-10 text-[11px] font-bold text-slate-400">
+<span>Week 1</span>
+<span>Week 2</span>
+<span>Week 3</span>
+<span>Week 4</span>
+<span>Week 5</span>
+</div>
+</div>
+</div>
+<!-- Attendance by Batch -->
+<div class="bg-surface-container-lowest p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<h4 class="text-xl font-bold tracking-tight mb-6">Attendance by Batch</h4>
+<div class="space-y-6">
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span>Class 10 Maths</span>
+<span class="text-primary">88%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full">
+<div class="h-full bg-primary-gradient rounded-full" style="width: 88%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span>Class 11 Physics</span>
+<span class="text-primary">79%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full">
+<div class="h-full bg-primary-gradient rounded-full opacity-80" style="width: 79%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span>Class 12 Biology</span>
+<span class="text-primary">92%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full">
+<div class="h-full bg-primary-gradient rounded-full" style="width: 92%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span>JEE Foundation</span>
+<span class="text-primary">81%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full">
+<div class="h-full bg-primary-gradient rounded-full opacity-90" style="width: 81%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span>NEET Prep</span>
+<span class="text-primary">76%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full">
+<div class="h-full bg-primary-gradient rounded-full opacity-70" style="width: 76%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN -->
+<div class="space-y-8">
+<!-- Fee Collection Summary -->
+<div class="bg-surface-container-lowest p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<div class="flex items-center justify-between mb-8">
+<h4 class="text-xl font-bold tracking-tight">Fee Collection Summary</h4>
+<div class="flex gap-2">
+<span class="px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded">Collected</span>
+<span class="px-2 py-1 bg-orange-50 text-orange-700 text-[10px] font-bold rounded">Pending</span>
+<span class="px-2 py-1 bg-red-50 text-red-700 text-[10px] font-bold rounded">Overdue</span>
+</div>
+</div>
+<div class="h-[240px] flex items-end justify-around px-4">
+<!-- Jan Bar -->
+<div class="w-16 flex flex-col gap-1 items-center">
+<div class="w-full bg-red-400 rounded-t-sm h-4"></div>
+<div class="w-full bg-orange-400 h-6"></div>
+<div class="w-full bg-emerald-500 rounded-b-sm h-32"></div>
+<span class="text-[11px] font-bold text-slate-400 mt-3">JAN</span>
+</div>
+<!-- Feb Bar -->
+<div class="w-16 flex flex-col gap-1 items-center">
+<div class="w-full bg-red-400 rounded-t-sm h-8"></div>
+<div class="w-full bg-orange-400 h-12"></div>
+<div class="w-full bg-emerald-500 rounded-b-sm h-28"></div>
+<span class="text-[11px] font-bold text-slate-400 mt-3">FEB</span>
+</div>
+<!-- Mar Bar -->
+<div class="w-16 flex flex-col gap-1 items-center">
+<div class="w-full bg-red-400 rounded-t-sm h-12"></div>
+<div class="w-full bg-orange-400 h-20"></div>
+<div class="w-full bg-emerald-500 rounded-b-sm h-20"></div>
+<span class="text-[11px] font-bold text-slate-400 mt-3">MAR</span>
+</div>
+</div>
+</div>
+<!-- Student Performance (Tests) -->
+<div class="bg-surface-container-lowest p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<h4 class="text-xl font-bold tracking-tight mb-6">Student Performance (Tests)</h4>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-slate-100">
+<tr class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+<th class="pb-3">Student</th>
+<th class="pb-3">Tests</th>
+<th class="pb-3">Avg Score</th>
+<th class="pb-3 text-right">Trend</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<tr class="group hover:bg-slate-50 transition-colors">
+<td class="py-4 text-sm font-bold">Aryan K.</td>
+<td class="py-4 text-sm font-medium text-slate-500">14/14</td>
+<td class="py-4 text-sm font-bold">94%</td>
+<td class="py-4 text-right">
+<span class="material-symbols-outlined text-emerald-500 text-lg">trending_up</span>
+</td>
+</tr>
+<tr class="group hover:bg-slate-50 transition-colors">
+<td class="py-4 text-sm font-bold">Isha Gupta</td>
+<td class="py-4 text-sm font-medium text-slate-500">14/14</td>
+<td class="py-4 text-sm font-bold">91%</td>
+<td class="py-4 text-right">
+<span class="material-symbols-outlined text-emerald-500 text-lg">trending_up</span>
+</td>
+</tr>
+<tr class="group hover:bg-slate-50 transition-colors">
+<td class="py-4 text-sm font-bold">Rohan S.</td>
+<td class="py-4 text-sm font-medium text-slate-500">13/14</td>
+<td class="py-4 text-sm font-bold">89%</td>
+<td class="py-4 text-right">
+<span class="material-symbols-outlined text-slate-400 text-lg">trending_flat</span>
+</td>
+</tr>
+<tr class="group hover:bg-slate-50 transition-colors bg-red-50/30">
+<td class="py-4 text-sm font-bold text-on-background">Manas V.</td>
+<td class="py-4 text-sm font-medium text-slate-500">11/14</td>
+<td class="py-4 text-sm font-bold text-red-600">42%</td>
+<td class="py-4 text-right">
+<span class="material-symbols-outlined text-red-500 text-lg">trending_down</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Fee Defaulters -->
+<div class="bg-surface-container-lowest p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,29,0.04)]">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h4 class="text-xl font-bold tracking-tight">Fee Defaulters List</h4>
+<p class="text-xs text-slate-400 font-medium">Attention required for 5 students</p>
+</div>
+<button class="text-primary font-bold text-sm hover:underline">View All Outstanding</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+<th class="pb-4 px-2">Student Name</th>
+<th class="pb-4 px-2">Batch</th>
+<th class="pb-4 px-2">Overdue Since</th>
+<th class="pb-4 px-2">Amount Due</th>
+<th class="pb-4 px-2">Last Reminder</th>
+<th class="pb-4 px-2 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-5 px-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+<img alt="Student 1" class="w-full h-full object-cover" data-alt="Student headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQZ1pFSyxZ0k5S4DlFRlOzojUtRBPzLGXT1KNUeDHp616ZgRmfENEoOw_MGS9LU8ED7GYNil5TvSNIM_TwBgbtrFIjN61XB9t3UJ0Qn6RTm5WATuIiTKaPRP4eV8tCmNRfst1la9De0dvi1vyOTnnB2usGhiGTPO4iVuzc-uthENR4zCFWDm56T59Bjvu4NIgDwObO9-A1KWq6Mpuxymousg_WLZzrx4vy5-Mo0Q6ZL8srxd80CX2eFm7xgFfGPsXXYdVWsBIzyNQ"/>
+</div>
+<span class="font-bold text-sm">Vikram Aditya</span>
+</td>
+<td class="py-5 px-2 text-sm text-slate-500 font-medium">JEE Foundation</td>
+<td class="py-5 px-2">
+<span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-black rounded-full uppercase">15 Days</span>
+</td>
+<td class="py-5 px-2 text-sm font-black">₹4,500</td>
+<td class="py-5 px-2 text-sm text-slate-400">02 Mar, 2026</td>
+<td class="py-5 px-2 text-right">
+<button class="border border-orange-200 text-orange-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-50 transition-colors flex items-center gap-2 ml-auto">
+<span class="material-symbols-outlined text-[16px]">notifications_active</span>
+                                        Send Reminder
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-5 px-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+<img alt="Student 2" class="w-full h-full object-cover" data-alt="Student headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFgP1j9IGjSdx_DBvXMMImhd2qaPCkyVf5J1Nl-vxVWwebs343DBLj8wITmwp46OfpTGPZ3QL4Vf4CVVdXokYuzGrt__X7fbiQwQlSr5TGBPx9-xchOhhxc971XTWD04Sh-MpuEg4xZ0tyfwx4fKNWHiL6qDesMz3T4c_PV-TgLT4Wpcm2UnCVynQW7XeU0Izjdp0JZplATV6sz2z_ZhuB2w9bEQq3orJ_8WUkbH8lYtnkXx5cPKcSQrfSn6m4Mc-mCyjVCH0NwIM"/>
+</div>
+<span class="font-bold text-sm">Sneha Kapoor</span>
+</td>
+<td class="py-5 px-2 text-sm text-slate-500 font-medium">Class 12 Biology</td>
+<td class="py-5 px-2">
+<span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-black rounded-full uppercase">12 Days</span>
+</td>
+<td class="py-5 px-2 text-sm font-black">₹3,200</td>
+<td class="py-5 px-2 text-sm text-slate-400">Never</td>
+<td class="py-5 px-2 text-right">
+<button class="border border-orange-200 text-orange-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-50 transition-colors flex items-center gap-2 ml-auto">
+<span class="material-symbols-outlined text-[16px]">notifications_active</span>
+                                        Send Reminder
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-5 px-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+<img alt="Student 3" class="w-full h-full object-cover" data-alt="Student headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpp6I6453aCOfHRlXK0aHWEnXSk_zP729sxpTIIAVQfPzTsXw8Ly-FdTdqwWRvBC3CJJsYPxrzXTE-3X3lehj9pq8g6fJ6TqX_B1B9oPHbLdU0vOkCKjJ-iahAVWjDSh2NGqsu8589KhITyh1r2ctSpyqR8Bi-W1vHZ1hCUFuV_nPOyG2fsonsTruIQgIrlHG4oz75aUVFJl8KpDre031OR6SMuy8YiFQnGHWPXaMC7XdCCh6NwL-WurIqqpkWX_ru0_G1RdGhxbw"/>
+</div>
+<span class="font-bold text-sm">Zaid Ibrahim</span>
+</td>
+<td class="py-5 px-2 text-sm text-slate-500 font-medium">NEET Prep</td>
+<td class="py-5 px-2">
+<span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-black rounded-full uppercase">21 Days</span>
+</td>
+<td class="py-5 px-2 text-sm font-black">₹8,000</td>
+<td class="py-5 px-2 text-sm text-slate-400">28 Feb, 2026</td>
+<td class="py-5 px-2 text-right">
+<button class="border border-orange-200 text-orange-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-50 transition-colors flex items-center gap-2 ml-auto">
+<span class="material-symbols-outlined text-[16px]">notifications_active</span>
+                                        Send Reminder
+                                    </button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</body></html>
