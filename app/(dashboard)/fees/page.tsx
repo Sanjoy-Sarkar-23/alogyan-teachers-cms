@@ -117,8 +117,8 @@ export default function FeesPage() {
             <tbody>
               {filtered.map(f => (
                 <tr key={f.id}>
-                  <td style={{ fontWeight: 600, fontSize: 13 }}>{f.studentId}</td>
-                  <td style={{ fontSize: 13 }}>{f.batchId}</td>
+                  <td style={{ fontWeight: 600, fontSize: 13 }}>{f.studentName}</td>
+                  <td style={{ fontSize: 13 }}>{f.batchName}</td>
                   <td style={{ fontSize: 13 }}>{f.month}</td>
                   <td style={{ fontWeight: 700, fontSize: 14 }}>₹{f.amount.toLocaleString('en-IN')}</td>
                   <td style={{ fontSize: 13 }}>{f.dueDateString}</td>

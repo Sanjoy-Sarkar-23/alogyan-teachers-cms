@@ -1,6 +1,28 @@
 import { Timestamp } from 'firebase/firestore';
 
 // ============================
+// API Response Types (REST)
+// ============================
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  meta?: {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    totalPages?: number;
+  };
+  timestamp?: string;
+  error?: {
+    code: string;
+    message: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details?: any;
+  };
+}
+
+// ============================
 // TEACHER
 // ============================
 export interface Teacher {
@@ -100,6 +122,7 @@ export interface FeeRecord {
   teacherId: string;
   studentId: string;
   studentName: string;
+  batchName: string;
   batchId: string;
   month: string;         // "2026-03"
   amount: number;

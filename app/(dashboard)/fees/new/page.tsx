@@ -8,14 +8,14 @@ import { db, auth } from '@/lib/firebase';
 import type { Batch, Student } from '@/types';
 import Link from 'next/link';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function NewFeePage() {
   const router = useRouter();
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [batches, setBatches]     = useState<Batch[]>([]);
-  const [students, setStudents]   = useState<Student[]>([]);
-  const [saving, setSaving]       = useState(false);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     studentId: '', batchId: '', amount: '', month: MONTHS[new Date().getMonth()],
     dueDate: new Date().toISOString().split('T')[0], status: 'pending', notes: '',
@@ -37,12 +37,24 @@ export default function NewFeePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!teacherId) return;
+
     setSaving(true);
     try {
+      const selectedStudent = students.find(s => s.id === form.studentId);
+      const selectedBatch = batches.find(b => b.id === form.batchId);
+
       await addDoc(collection(db, 'fees'), {
-        ...form, amount: Number(form.amount), teacherId, createdAt: serverTimestamp(),
+        ...form,
+        amount: Number(form.amount),
+        teacherId,
+
+        studentName: selectedStudent?.name || '',
+        batchName: selectedBatch?.name || '',
+
+        createdAt: serverTimestamp(),
         paidAt: form.status === 'paid' ? serverTimestamp() : null,
       });
+
       router.push('/fees');
     } finally {
       setSaving(false);
