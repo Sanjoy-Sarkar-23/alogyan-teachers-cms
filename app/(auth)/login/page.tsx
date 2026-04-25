@@ -1,107 +1,94 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useState } from 'react';
+import Link from 'next/link';
+import EmailForm    from '@/components/auth/EmailForm';
+import PhoneForm    from '@/components/auth/PhoneForm';
+import SocialButtons from '@/components/auth/SocialButtons';
+
+type Tab = 'email' | 'phone';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Set a simple session cookie (client-side) so middleware allows access
-      document.cookie = 'alogyan-session=1; path=/; max-age=86400';
-      router.push('/dashboard');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Sign in failed';
-      if (msg.includes('invalid-credential') || msg.includes('wrong-password') || msg.includes('user-not-found')) {
-        setError('Invalid email or password.');
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [tab, setTab] = useState<Tab>('email');
 
   return (
-    <div className="card" style={{ width: '100%', maxWidth: 420 }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 14,
-          background: 'var(--primary)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 14px',
-        }}>
-          <span className="material-symbols-rounded filled" style={{ color: '#fff', fontSize: 28 }}>school</span>
-        </div>
-        <h1 style={{ fontSize: 22, color: 'var(--text-primary)', marginBottom: 4 }}>Welcome back</h1>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Sign in to your Alogyan CMS</p>
+    <div className="w-full max-w-md">
+
+      {/* Heading */}
+      <div className="mb-7">
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          Welcome back 👋
+        </h1>
+        <p className="text-sm text-gray-500 mt-1.5">
+          Sign in to your Alogyan account to continue.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div className="form-group">
-          <label className="form-label" htmlFor="email">Email Address</label>
-          <input
-            id="email"
-            type="email"
-            className={`input ${error ? 'error' : ''}`}
-            placeholder="you@school.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-          />
-        </div>
+      {/* Card */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-xl shadow-gray-100/60 p-7">
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            className={`input ${error ? 'error' : ''}`}
-            placeholder="••••••••"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </div>
+        {/* Social buttons */}
+        <SocialButtons />
 
-        {error && (
-          <div className="flash-error" style={{ fontSize: 13, padding: '10px 12px' }}>
-            {error}
+        {/* Divider */}
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-100" />
           </div>
-        )}
+          <div className="relative flex justify-center">
+            <span className="bg-white px-3 text-xs text-gray-400 font-medium">
+              or continue with
+            </span>
+          </div>
+        </div>
 
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={loading}
-          style={{ justifyContent: 'center', marginTop: 8 }}
-        >
-          {loading ? (
-            <>
-              <span className="material-symbols-rounded icon-sm" style={{ animation: 'spin 1s linear infinite' }}>autorenew</span>
-              Signing in…
-            </>
-          ) : 'Sign In'}
-        </button>
-      </form>
+        {/* Tab switcher */}
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-5 gap-1">
+          {([
+            { id: 'email', icon: 'mail',       label: 'Email' },
+            { id: 'phone', icon: 'smartphone', label: 'Phone' },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg
+                          py-2 text-sm font-semibold transition-all duration-200
+                          ${tab === t.id
+                            ? 'bg-white text-red-700 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                          }`}
+            >
+              <span className="material-symbols-rounded filled" style={{fontSize:15}}>{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      <style jsx>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+        {/* Active form */}
+        {tab === 'email' ? <EmailForm /> : <PhoneForm />}
+      </div>
+
+      {/* Footer links */}
+      <p className="mt-5 text-center text-xs text-gray-400">
+        Don&apos;t have an account?{' '}
+        <Link href="/" className="text-red-600 font-semibold hover:underline">
+          Learn more about Alogyan
+        </Link>
+      </p>
+
+      {/* Trust signals */}
+      <div className="mt-6 flex items-center justify-center gap-6">
+        {[
+          { icon: 'lock',          label: 'Secure login' },
+          { icon: 'verified_user', label: 'Firebase Auth' },
+          { icon: 'privacy_tip',   label: 'Encrypted' },
+        ].map(t => (
+          <div key={t.label} className="flex items-center gap-1.5 text-gray-400">
+            <span className="material-symbols-rounded filled" style={{fontSize:13}}>{t.icon}</span>
+            <span className="text-xs">{t.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
