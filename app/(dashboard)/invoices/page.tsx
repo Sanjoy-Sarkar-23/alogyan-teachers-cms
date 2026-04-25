@@ -11,7 +11,7 @@ import { LoadingSpinner, PageHeader, EmptyState } from '@/components/common';
 type MonthFilter = 'all' | 'this_month' | 'last_month';
 
 function formatDate(ts: { toDate?: () => Date } | Date | null | undefined): string {
-  if (!ts) return 'ΓÇö';
+  if (!ts) return '—';
   const d = typeof (ts as { toDate?: () => Date }).toDate === 'function'
     ? (ts as { toDate: () => Date }).toDate()
     : ts as Date;
@@ -54,7 +54,7 @@ export default function InvoicesPage() {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
-  /* ΓöÇΓöÇΓöÇ Month filter ΓöÇΓöÇΓöÇ */
+  /* ─── Month filter ─── */
   const now = new Date();
   const filtered = invoices.filter(inv => {
     if (filter === 'all') return true;
@@ -74,7 +74,7 @@ export default function InvoicesPage() {
     <div style={{ padding: 0 }}>
       <PageHeader
         title="Invoices"
-        subtitle={`${filtered.length} invoice${filtered.length !== 1 ? 's' : ''} ┬╖ Γé╣${totalAmount.toLocaleString('en-IN')} total`}
+        subtitle={`${filtered.length} invoice${filtered.length !== 1 ? 's' : ''} · ₹${totalAmount.toLocaleString('en-IN')} total`}
       />
 
       {/* Filter chips */}
@@ -135,7 +135,7 @@ export default function InvoicesPage() {
                   <td className="font-medium">{inv.studentName}</td>
                   <td style={{ color: 'var(--text-secondary)' }}>{inv.batchName}</td>
                   <td>{inv.month}</td>
-                  <td className="font-bold">Γé╣{(inv.paidAmount ?? inv.amount).toLocaleString('en-IN')}</td>
+                  <td className="font-bold">₹{(inv.paidAmount ?? inv.amount).toLocaleString('en-IN')}</td>
                   <td>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
                       <span className="material-symbols-rounded icon-sm" style={{ color: 'var(--text-secondary)' }}>

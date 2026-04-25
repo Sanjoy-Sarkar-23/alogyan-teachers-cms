@@ -1,31 +1,39 @@
 'use client';
 
-import React from 'react';
+import { ReactNode } from 'react';
 import Link from 'next/link';
 
 interface EmptyStateProps {
-  icon: string;
+  icon?: string;
   title: string;
-  description: string;
-  action?: React.ReactNode;
+  description?: string;
+  action?: ReactNode;
   href?: string;
   actionLabel?: string;
+  className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, href, actionLabel }: EmptyStateProps) {
+export function EmptyState({ 
+  icon = 'inbox', 
+  title, 
+  description, 
+  action, 
+  href,
+  actionLabel = 'Get Started',
+  className = '' 
+}: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-        <span className="material-symbols-rounded text-3xl text-muted-foreground">{icon}</span>
-      </div>
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-muted-foreground max-w-xs mb-4">{description}</p>
-      {action}
-      {!action && href && actionLabel && (
+    <div className={`flex flex-col items-center justify-center min-h-[300px] text-center p-8 ${className}`}>
+      <span className="material-symbols-rounded text-6xl text-muted-foreground/50 mb-4">
+        {icon}
+      </span>
+      <h3 className="text-lg font-semibold mb-2">{title}</h3>
+      {description && <p className="text-muted-foreground mb-4 max-w-md">{description}</p>}
+      {action || (href && (
         <Link href={href} className="btn btn-primary btn-sm">
           {actionLabel}
         </Link>
-      )}
+      ))}
     </div>
   );
 }

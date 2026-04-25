@@ -1,26 +1,47 @@
 'use client';
 
-type KPIColor = 'default' | 'success' | 'warning' | 'danger';
-
-const KPI_COLOR_STYLES: Record<KPIColor, string> = {
-  default: 'text-foreground',
-  success: 'text-green-600',
-  warning: 'text-yellow-600',
-  danger:  'text-red-600',
-};
+import { ReactNode } from 'react';
 
 interface KPICardProps {
   label: string;
   value: string | number;
-  color?: KPIColor;
+  icon?: ReactNode;
+  trend?: string;
+  trendUp?: boolean | null;
+  color?: 'default' | 'success' | 'warning' | 'danger';
 }
 
-export function KPICard({ label, value, color = 'default' }: KPICardProps) {
-  const colorClass = KPI_COLOR_STYLES[color];
+const colorClasses = {
+  default: 'bg-primary/10 text-primary',
+  success: 'bg-green-100 text-green-600',
+  warning: 'bg-yellow-100 text-yellow-600',
+  danger: 'bg-red-100 text-red-600',
+};
+
+export function KPICard({ label, value, icon, trend, trendUp, color = 'default' }: KPICardProps) {
   return (
     <div className="card p-4">
-      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">{label}</p>
-      <p className={`text-2xl font-bold ${colorClass}`}>{value}</p>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-sm text-muted-foreground mb-1">{label}</p>
+          <p className="text-2xl font-bold">{value}</p>
+          {trend && (
+            <div className={`flex items-center gap-1 mt-2 text-xs ${
+              trendUp === true ? 'text-green-600' : trendUp === false ? 'text-red-600' : 'text-muted-foreground'
+            }`}>
+              {trendUp === true && <span className="material-symbols-rounded text-sm">trending_up</span>}
+              {trendUp === false && <span className="material-symbols-rounded text-sm">trending_down</span>}
+              {trendUp === null && <span className="material-symbols-rounded text-sm">info</span>}
+              <span>{trend}</span>
+            </div>
+          )}
+        </div>
+        {icon && (
+          <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
+            {icon}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

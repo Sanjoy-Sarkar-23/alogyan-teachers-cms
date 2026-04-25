@@ -10,7 +10,7 @@ import {
 import { db } from '@/lib/firebase';
 import type { Invoice, PaymentMode, InvoiceStatus } from '@/types';
 
-// ΓöÇΓöÇΓöÇ Counter ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Counter ────────────────────────────────────────────────────────────────
 // Each teacher gets their own counter document so invoice numbers stay tidy.
 // Counter doc path: meta/invoiceCounter_{teacherId}
 
@@ -29,7 +29,7 @@ async function generateInvoiceNo(teacherId: string): Promise<string> {
   return `INV-${year}-${String(newCount).padStart(5, '0')}`;
 }
 
-// ΓöÇΓöÇΓöÇ Create Invoice ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Create Invoice ──────────────────────────────────────────────────────────
 
 export interface CreateInvoicePayload {
   teacherId: string;
@@ -55,7 +55,7 @@ export interface CreateInvoicePayload {
 export async function createInvoice(payload: CreateInvoicePayload): Promise<{ id: string; invoiceNo: string }> {
   const invoiceNo = await generateInvoiceNo(payload.teacherId);
 
-  // Firestore rejects undefined values ΓÇö strip them before writing
+  // Firestore rejects undefined values — strip them before writing
   const raw = {
     ...payload,
     invoiceNo,
@@ -73,7 +73,7 @@ export async function createInvoice(payload: CreateInvoicePayload): Promise<{ id
   return { id: docRef.id, invoiceNo };
 }
 
-// ΓöÇΓöÇΓöÇ Fetch Invoice ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Fetch Invoice ───────────────────────────────────────────────────────────
 
 export async function getInvoice(invoiceId: string): Promise<Invoice | null> {
   const snap = await getDoc(doc(db, 'invoices', invoiceId));
@@ -81,7 +81,7 @@ export async function getInvoice(invoiceId: string): Promise<Invoice | null> {
   return { id: snap.id, ...snap.data() } as Invoice;
 }
 
-// ΓöÇΓöÇΓöÇ List Invoices for teacher (client-side usage) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── List Invoices for teacher (client-side usage) ───────────────────────────
 // Used by the invoices list page via Firestore query directly.
 // Export the collection path for convenience.
 export const INVOICES_COLLECTION = 'invoices';

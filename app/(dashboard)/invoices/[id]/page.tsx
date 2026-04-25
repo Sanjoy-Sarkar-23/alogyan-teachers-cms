@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, use } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
@@ -16,7 +16,7 @@ const MODE_LABEL: Record<string, string> = {
 };
 
 function formatDate(ts: { toDate?: () => Date } | Date | string | null | undefined): string {
-  if (!ts) return 'ΓÇö';
+  if (!ts) return '—';
   let d: Date;
   if (typeof ts === 'string') {
     d = new Date(ts);
@@ -71,7 +71,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
     }
   }, [loading, invoice, autoPrint, printed]);
 
-  /* Override page title ΓåÆ invoice number so the browser print header shows
+  /* Override page title → invoice number so the browser print header shows
      "INV-2026-00001" instead of "Alogyan Teacher CMS"                    */
   useEffect(() => {
     if (!invoice) return;
@@ -102,10 +102,10 @@ export default function InvoiceDetailPage({ params }: PageProps) {
     : null;
 
   return (
-    /* The page root ΓÇö everything screen-side lives here */
+    /* The page root — everything screen-side lives here */
     <div>
 
-      {/* ΓöÇΓöÇ Action bar (screen only, hidden on print) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* ── Action bar (screen only, hidden on print) ─────────────────── */}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
         <Link href="/invoices" className="btn btn-outline">
           <span className="material-symbols-rounded icon-sm">arrow_back</span>
@@ -125,16 +125,16 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         </Link>
       </div>
 
-      {/* ΓöÇΓöÇ Invoice sheet ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* ── Invoice sheet ────────────────────────────────── */}
       <div className="invoice-sheet" id="invoice-print-area">
 
-        {/* Body grows to fill page ΓÇö contact bar stays at bottom */}
+        {/* Body grows to fill page — contact bar stays at bottom */}
         <div className="inv-body">
 
           {/* HEADER: logo left, invoice meta right */}
           <div className="inv-header">
 
-            {/* Brand / logo ΓÇö logo + institute name */}
+            {/* Brand / logo — logo + institute name */}
             <div className="inv-brand">
               {logoURL ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -156,7 +156,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
               <div className="inv-date">Date: {createdDate}</div>
               <div style={{ marginTop: 10 }}>
                 <span className={`inv-status-badge ${invoice.status === 'issued' ? 'paid' : 'cancelled'}`}>
-                  {invoice.status === 'issued' ? 'Γ£ô PAID' : 'Γ£ù CANCELLED'}
+                  {invoice.status === 'issued' ? '✓ PAID' : '✗ CANCELLED'}
                 </span>
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                     {invoice.paymentType === 'one-time'
                       ? (invoice.oneTimeDescription ?? 'One-Time Payment')
                       : invoice.paymentType === 'batch'
-                        ? `Batch Fee ΓÇö ${invoice.month}`
+                        ? `Batch Fee — ${invoice.month}`
                         : `${invoice.month}`
                     }
                   </div>
@@ -213,7 +213,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                 </td>
                 <td style={{ textAlign: 'center' }}>1</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                  Γé╣{invoice.amount.toLocaleString('en-IN')}
+                  ₹{invoice.amount.toLocaleString('en-IN')}
                 </td>
               </tr>
             </tbody>
@@ -223,13 +223,13 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                   Total Paid
                 </td>
                 <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 19, color: '#2E7D32' }}>
-                  Γé╣{(invoice.paidAmount ?? invoice.amount).toLocaleString('en-IN')}
+                  ₹{(invoice.paidAmount ?? invoice.amount).toLocaleString('en-IN')}
                 </td>
               </tr>
             </tfoot>
           </table>
 
-          {/* PAYMENT DETAILS ΓÇö matches invoice table style */}
+          {/* PAYMENT DETAILS — matches invoice table style */}
           <div className="inv-payment-box">
             <div className="inv-section-label" style={{ marginBottom: 12 }}>PAYMENT DETAILS</div>
 
@@ -246,7 +246,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>
                   {invoice.status === 'issued'
                     ? (MODE_LABEL[invoice.paymentMode] ?? invoice.paymentMode)
-                    : <span style={{ color: '#bbb', fontStyle: 'italic' }}>ΓÇö</span>
+                    : <span style={{ color: '#bbb', fontStyle: 'italic' }}>—</span>
                   }
                 </div>
               </div>
@@ -262,12 +262,12 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>
                   {invoice.status === 'issued' && paidDate
                     ? paidDate
-                    : <span style={{ color: '#bbb', fontStyle: 'italic' }}>ΓÇö</span>
+                    : <span style={{ color: '#bbb', fontStyle: 'italic' }}>—</span>
                   }
                 </div>
               </div>
 
-              {/* Overdue / Cancelled notice ΓÇö only if not issued */}
+              {/* Overdue / Cancelled notice — only if not issued */}
               {invoice.status !== 'issued' && (
                 <div style={{ flex: 1, padding: '12px 16px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.7px', textTransform: 'uppercase', color: '#aaa', marginBottom: 5 }}>
@@ -306,11 +306,11 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                 /* Blank signature line */
                 <div style={{ marginTop: 44, width: 200, borderTop: '1.5px solid #333' }} />
               )}
-              {/* Name ΓÇö bold, prominent */}
+              {/* Name — bold, prominent */}
               <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginTop: 8, letterSpacing: '0.1px' }}>
                 {teacher?.name ?? 'Teacher'}
               </div>
-              {/* Designation / title ΓÇö secondary line */}
+              {/* Designation / title — secondary line */}
               {teacher?.title && (
                 <div style={{ fontSize: 12, color: '#555', marginTop: 2, fontStyle: 'italic' }}>
                   {teacher.title}
@@ -330,7 +330,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
               <div style={{ fontWeight: 700, color: '#1a1a1a', fontSize: 18, marginBottom: 6 }}>Thank you!</div>
               <div>This is a computer-generated invoice.</div>
               <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'monospace' }}>
-                {invoice.invoiceNo} ┬╖ {createdDate}
+                {invoice.invoiceNo} · {createdDate}
               </div>
             </div>
           </div>
@@ -338,7 +338,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         </div>
         {/* END inv-body */}
 
-        {/* CONTACT BAR ΓÇö always at bottom of A4 page */}
+        {/* CONTACT BAR — always at bottom of A4 page */}
         <div className="inv-contact-bar">
           {address && (
             <span className="inv-contact-item">
@@ -370,7 +370,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
             </span>
           )}
 
-          {/* Powered by Alogyan ΓÇö always shown on the right */}
+          {/* Powered by Alogyan — always shown on the right */}
           <span className="inv-powered-by">
             <span className="material-symbols-rounded filled" style={{ fontSize: 13, color: '#4F46E5', verticalAlign: 'middle', marginRight: 3 }}>school</span>
             Powered by&nbsp;<strong>Alogyan</strong>

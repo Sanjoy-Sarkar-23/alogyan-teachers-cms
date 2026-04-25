@@ -1,0 +1,72 @@
+# Alogyan - Teacher Dashboard
+
+[dashboard
+Dashboard](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[group
+Students](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[layers
+Batches](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[event_available
+Attendance](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[payments
+Fees](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[description
+Notes](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[quiz
+Tests](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[assessment
+Reports](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+[campaign
+Announcements](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+Rajan Sir
+Academic Head
+
+# Dashboard
+
+## Welcome back, Rajan Sir 👋
+Friday, 21 March 2026
+Total Students
+
+### 48
+Active Batches
+
+### 6
+Monthly Revenue
+
+### ₹42,000
+Pending Fees
+
+### ₹8,500
+
+#### Today's Schedule
+9:00 AM
+60 MINS
+Class 10 Maths
+group 12 Students
+11:30 AM
+90 MINS
+Physics - JEE Adv.
+group 08 Students
+04:00 PM
+60 MINS
+Algebra Mock Test
+group 15 Students
+
+#### Pending Actions
+Aarav Sharma
+Fee Due ₹1,500
+Khushi Patel
+Missed Mock Test
+Rohan Verma
+Fee Due ₹2,200
+
+#### Recent Announcements
+JEE Mock Test Schedule Update
+20 Mar 2026
+[View Details](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+New Study Material Uploaded: Organic Chem
+18 Mar 2026
+[View Details](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)
+Holi Holiday Announcement
+15 Mar 2026
+[View Details](https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzdlZTM4YjkzYzkwZjRjNTQ5N2Y5NmNkNjA3MjgwM2Q3EgsSBxDc-tK37QgYAZIBIwoKcHJvamVjdF9pZBIVQhMxMTgyMTc0NDU2MzA5MDQ4OTgy&filename=&opi=96797242)

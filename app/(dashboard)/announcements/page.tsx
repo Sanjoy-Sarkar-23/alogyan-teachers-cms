@@ -5,12 +5,15 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy } f
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import type { Announcement } from '@/types';
+import { LoadingSpinner, PageHeader, EmptyState } from '@/components/common';
+import { timeAgo } from '@/lib/utils';
+import { toastSuccess, toastError } from '@/lib/toast';
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [saving, setSaving]               = useState(false);
-  const [teacherId, setTeacherId]         = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [teacherId, setTeacherId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', message: '', targetBatchIds: [] as string[] });
   const [showForm, setShowForm] = useState(false);
 
@@ -46,42 +49,35 @@ export default function AnnouncementsPage() {
       setForm({ title: '', message: '', targetBatchIds: [] });
       setShowForm(false);
       await fetchAnnouncements();
+      toastSuccess('Announcement posted successfully!');
+    } catch (error) {
+      toastError(`Failed to post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
   }
 
-  const timeAgo = (ts: unknown) => {
-    if (!ts) return '';
-    const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
-    const secs = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (secs < 60) return 'just now';
-    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-    return `${Math.floor(secs / 86400)}d ago`;
-  };
-
   return (
-    <div>
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><h1>Announcements</h1><p>Communicate with your students</p></div>
+    <div className="p-6">
+      <PageHeader 
+        title="Announcements" 
+        subtitle="Communicate with your students"
+        action={
           <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
             <span className="material-symbols-rounded icon-sm">{showForm ? 'close' : 'campaign'}</span>
             {showForm ? 'Cancel' : 'New Announcement'}
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Compose Form */}
       {showForm && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <h3 style={{ marginBottom: 16, fontSize: 15, fontWeight: 600 }}>New Announcement</h3>
-          <form onSubmit={postAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="card p-4 mb-4">
+          <h3 className="font-semibold mb-4">New Announcement</h3>
+          <form onSubmit={postAnnouncement} className="space-y-3">
             <div>
               <label className="form-label">Title</label>
               <input
-                className="input"
+                className="input w-full"
                 placeholder="Announcement title…"
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
@@ -91,16 +87,15 @@ export default function AnnouncementsPage() {
             <div>
               <label className="form-label">Message</label>
               <textarea
-                className="input"
+                className="input w-full resize-none"
                 rows={4}
                 placeholder="Write your message here…"
-                style={{ resize: 'vertical', fontFamily: 'inherit' }}
                 value={form.message}
                 onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
                 required
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="flex justify-end gap-2">
               <button type="button" className="btn btn-outline" onClick={() => setShowForm(false)}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving ? 'Posting…' : 'Post Announcement'}
@@ -110,35 +105,33 @@ export default function AnnouncementsPage() {
         </div>
       )}
 
-      {/* List */}
       {loading ? (
-        <div className="empty-state"><span className="material-symbols-rounded" style={{ fontSize: 36 }}>autorenew</span></div>
+        <LoadingSpinner />
       ) : announcements.length === 0 ? (
-        <div className="card"><div className="empty-state">
-          <span className="material-symbols-rounded">campaign</span>
-          <h3>No announcements yet</h3>
-          <p>Post an announcement to communicate with all your students.</p>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>Post Announcement</button>
-        </div></div>
+        <EmptyState 
+          icon="campaign"
+          title="No announcements yet"
+          description="Post an announcement to communicate with all your students."
+          action={
+            <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>
+              Post Announcement
+            </button>
+          }
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="space-y-3">
           {announcements.map(a => (
-            <div className="card" key={a.id}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10,
-                  background: 'var(--primary-light)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  <span className="material-symbols-rounded filled" style={{ color: 'var(--primary)', fontSize: 20 }}>campaign</span>
+            <div key={a.id} className="card p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-filled text-primary text-sm">campaign</span>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{a.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-disabled)', flexShrink: 0, marginLeft: 12 }}>{timeAgo(a.createdAt)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="font-semibold">{a.title}</h4>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(a.createdAt)}</span>
                   </div>
-                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5 }}>{a.message}</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{a.message}</p>
                 </div>
               </div>
             </div>

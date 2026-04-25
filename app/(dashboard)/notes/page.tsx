@@ -139,7 +139,7 @@ export default function NotesPage() {
     setSaving(true);
     try {
       let fileUrl = editingNote?.fileUrl;
-      let fileType = modalType;
+      let fileType: NoteType = modalType;
       let fileSize = (editingNote as any)?.fileSize;
 
       if (uploadFile) {

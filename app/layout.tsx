@@ -1,5 +1,7 @@
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ReactQueryProvider } from '@/contexts/ReactQueryProvider';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { Toaster } from '@/components/toast/ToastProvider';
 import { cn } from "@/lib/utils";
 import type { Metadata } from 'next';
 import { Geist } from "next/font/google";
@@ -14,12 +16,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
+    <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
       <body>
         <ReactQueryProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            disableTransitionOnChange
+          >
+            <AuthProvider>
+              {children}
+              <Toaster />
+            </AuthProvider>
+          </ThemeProvider>
         </ReactQueryProvider>
       </body>
     </html>

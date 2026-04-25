@@ -8,7 +8,7 @@ import { db, auth } from '@/lib/firebase';
 import type { Batch, Student, PaymentType } from '@/types';
 import Link from 'next/link';
 
-/* ΓöÇΓöÇΓöÇ Const ΓöÇΓöÇΓöÇ */
+/* ─── Const ─── */
 const MONTHS = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
@@ -17,17 +17,17 @@ const MONTHS = [
 const PAYMENT_TYPES: { key: PaymentType; icon: string; label: string; desc: string }[] = [
   { key: 'monthly',  icon: 'calendar_month',  label: 'Monthly',    desc: 'Regular monthly tuition fee' },
   { key: 'batch',    icon: 'groups',           label: 'Batch-wise', desc: 'Full batch / course fee'    },
-  { key: 'one-time', icon: 'bolt',             label: 'One-Time',   desc: 'Internship, exam, workshopΓÇª' },
+  { key: 'one-time', icon: 'bolt',             label: 'One-Time',   desc: 'Internship, exam, workshop…' },
 ];
 
 const PAYMENT_MODES = [
-  { value: 'cash',          label: '≡ƒÆ╡ Cash'          },
-  { value: 'upi',           label: '≡ƒô▒ UPI'           },
-  { value: 'bank_transfer', label: '≡ƒÅª Bank Transfer' },
-  { value: 'cheque',        label: '≡ƒôä Cheque'        },
+  { value: 'cash',          label: '💵 Cash'          },
+  { value: 'upi',           label: '📱 UPI'           },
+  { value: 'bank_transfer', label: '🏦 Bank Transfer' },
+  { value: 'cheque',        label: '📄 Cheque'        },
 ];
 
-/* ΓöÇΓöÇΓöÇ Quick amount presets for one-time ΓöÇΓöÇΓöÇ */
+/* ─── Quick amount presets for one-time ─── */
 const ONE_TIME_PRESETS = [499, 999, 1499, 1999, 2499, 4999];
 
 type Status = 'pending' | 'paid' | 'overdue';
@@ -58,13 +58,13 @@ export default function NewFeePage() {
   const set = (field: keyof typeof form, val: string) =>
     setForm(prev => ({ ...prev, [field]: val }));
 
-  /* ΓöÇΓöÇΓöÇ Auth ΓöÇΓöÇΓöÇ */
+  /* ─── Auth ─── */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => setTeacherId(u?.uid ?? null));
     return unsub;
   }, []);
 
-  /* ΓöÇΓöÇΓöÇ Load batches & students ΓöÇΓöÇΓöÇ */
+  /* ─── Load batches & students ─── */
   useEffect(() => {
     if (!teacherId) return;
     getDocs(query(collection(db, 'batches'),  where('teacherId', '==', teacherId)))
@@ -73,7 +73,7 @@ export default function NewFeePage() {
       .then(s => setStudents(s.docs.map(d => ({ id: d.id, ...d.data() } as Student))));
   }, [teacherId]);
 
-  /* ΓöÇΓöÇΓöÇ Auto-fill amount from batch monthly fee ΓöÇΓöÇΓöÇ */
+  /* ─── Auto-fill amount from batch monthly fee ─── */
   useEffect(() => {
     if (form.paymentType === 'monthly' && form.batchId) {
       const b = batches.find(b => b.id === form.batchId);
@@ -82,7 +82,7 @@ export default function NewFeePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.batchId, form.paymentType]);
 
-  /* ΓöÇΓöÇΓöÇ Submit ΓöÇΓöÇΓöÇ */
+  /* ─── Submit ─── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!teacherId) return;
@@ -188,7 +188,7 @@ export default function NewFeePage() {
       <div style={{ maxWidth: 620 }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* ΓöÇΓöÇ Step 1: Payment Type ΓöÇΓöÇ */}
+          {/* ── Step 1: Payment Type ── */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-rounded icon-sm" style={{ color: 'var(--primary)' }}>category</span>
@@ -226,7 +226,7 @@ export default function NewFeePage() {
             </div>
           </div>
 
-          {/* ΓöÇΓöÇ Step 2: Student & Batch ΓöÇΓöÇ */}
+          {/* ── Step 2: Student & Batch ── */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-rounded icon-sm" style={{ color: 'var(--primary)' }}>person</span>
@@ -236,7 +236,7 @@ export default function NewFeePage() {
               <div>
                 <label className="form-label">Student *</label>
                 <select className="select" required value={form.studentId} onChange={e => set('studentId', e.target.value)}>
-                  <option value="">ΓÇö Select student ΓÇö</option>
+                  <option value="">— Select student —</option>
                   {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -248,14 +248,14 @@ export default function NewFeePage() {
                   value={form.batchId}
                   onChange={e => set('batchId', e.target.value)}
                 >
-                  <option value="">ΓÇö Select batch ΓÇö</option>
-                  {batches.map(b => <option key={b.id} value={b.id}>{b.name} ΓÇö {b.subject}</option>)}
+                  <option value="">— Select batch —</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.subject}</option>)}
                 </select>
               </div>
             </div>
           </div>
 
-          {/* ΓöÇΓöÇ Step 3: Amount & Period ΓöÇΓöÇ */}
+          {/* ── Step 3: Amount & Period ── */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-rounded icon-sm" style={{ color: 'var(--primary)' }}>currency_rupee</span>
@@ -272,7 +272,7 @@ export default function NewFeePage() {
                     <input
                       className="input"
                       required
-                      placeholder="e.g. Internship Programme, Workshop, Exam FeeΓÇª"
+                      placeholder="e.g. Internship Programme, Workshop, Exam Fee…"
                       value={form.oneTimeDescription}
                       onChange={e => set('oneTimeDescription', e.target.value)}
                     />
@@ -292,7 +292,7 @@ export default function NewFeePage() {
                             cursor: 'pointer', transition: 'all 0.12s',
                           }}
                         >
-                          Γé╣{p.toLocaleString('en-IN')}
+                          ₹{p.toLocaleString('en-IN')}
                         </button>
                       ))}
                     </div>
@@ -310,7 +310,7 @@ export default function NewFeePage() {
                         {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     ) : (
-                      <input className="input" placeholder="e.g. JanΓÇôMar 2026" value={form.month} onChange={e => set('month', e.target.value)} />
+                      <input className="input" placeholder="e.g. Jan–Mar 2026" value={form.month} onChange={e => set('month', e.target.value)} />
                     )}
                   </div>
                   <div>
@@ -323,9 +323,9 @@ export default function NewFeePage() {
               {/* Amount + Due Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="form-label">Amount (Γé╣) *</label>
+                  <label className="form-label">Amount (₹) *</label>
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-secondary)' }}>Γé╣</span>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-secondary)' }}>₹</span>
                     <input
                       className="input"
                       style={{ paddingLeft: 26 }}
@@ -343,7 +343,7 @@ export default function NewFeePage() {
             </div>
           </div>
 
-          {/* ΓöÇΓöÇ Step 4: Payment Status & Mode ΓöÇΓöÇ */}
+          {/* ── Step 4: Payment Status & Mode ── */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-rounded icon-sm" style={{ color: 'var(--primary)' }}>payments</span>
@@ -378,7 +378,7 @@ export default function NewFeePage() {
               })}
             </div>
 
-            {/* Payment mode ΓÇö only when paid */}
+            {/* Payment mode — only when paid */}
             {form.status === 'paid' && (
               <div>
                 <label className="form-label">Payment Mode</label>
@@ -426,7 +426,7 @@ export default function NewFeePage() {
               className="input"
               rows={2}
               style={{ resize: 'vertical', fontFamily: 'inherit' }}
-              placeholder="Any special instructions, reference number, or remarksΓÇª"
+              placeholder="Any special instructions, reference number, or remarks…"
               value={form.notes}
               onChange={e => set('notes', e.target.value)}
             />
@@ -440,7 +440,7 @@ export default function NewFeePage() {
                 {saving ? 'sync' : form.status === 'paid' ? 'receipt_long' : 'save'}
               </span>
               {saving
-                ? (form.status === 'paid' ? 'Saving & generating invoiceΓÇª' : 'SavingΓÇª')
+                ? (form.status === 'paid' ? 'Saving & generating invoice…' : 'Saving…')
                 : (form.status === 'paid' ? 'Save & Generate Invoice' : 'Record Payment')}
             </button>
           </div>

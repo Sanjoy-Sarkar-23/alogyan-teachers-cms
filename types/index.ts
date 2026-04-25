@@ -65,7 +65,7 @@ export interface InstituteProfile {
   pin: string;
   country: string;
 
-  // Branding (same as Teacher.logoURL ΓÇö kept in sync)
+  // Branding (same as Teacher.logoURL — kept in sync)
   logoURL?: string;
 
   updatedAt: Timestamp;
@@ -173,7 +173,7 @@ export interface FeeRecord {
   studentName: string;
   batchName: string;
   batchId: string;
-  month: string;               // "2026-03" (or "ΓÇö" for one-time)
+  month: string;               // "2026-03" (or "—" for one-time)
   amount: number;
   paidAmount: number;
   status: FeeStatus;
@@ -263,7 +263,7 @@ export type NoteType = 'pdf' | 'image' | 'link' | 'text';
 export interface Note {
   id: string;
   teacherId: string;
-  batchId?: string;        // optional ΓÇö null means all batches
+  batchId?: string;        // optional — null means all batches
   title: string;
   description?: string;
   type: NoteType;

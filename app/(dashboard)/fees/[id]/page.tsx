@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, use } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -91,7 +91,7 @@ export default function FeeDetailPage({ params }: PageProps) {
         router.push(`/invoices/${invoiceId}`);
         return;
       }
-      setToast('Payment marked paid. Invoice generation failed ΓÇö try again later.');
+      setToast('Payment marked paid. Invoice generation failed — try again later.');
       setFee(prev => prev ? { ...prev, status: 'paid', paidAmount: prev.amount } : prev);
     } finally {
       setMarkingPaid(false);
@@ -127,7 +127,7 @@ export default function FeeDetailPage({ params }: PageProps) {
           <div>
             <h1>Fee Record</h1>
             <p>
-              {fee.studentName} ΓÇö {fee.batchName} ΓÇö {fee.month}
+              {fee.studentName} — {fee.batchName} — {fee.month}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -148,7 +148,7 @@ export default function FeeDetailPage({ params }: PageProps) {
 
           {/* Status row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h2 style={{ fontSize: 22 }}>Γé╣{fee.amount.toLocaleString('en-IN')}</h2>
+            <h2 style={{ fontSize: 22 }}>₹{fee.amount.toLocaleString('en-IN')}</h2>
             <StatusBadge status={fee.status} />
           </div>
 
@@ -159,8 +159,8 @@ export default function FeeDetailPage({ params }: PageProps) {
               ['Batch',    fee.batchName],
               ['Month',    fee.month],
               ['Due Date', fee.dueDateString],
-              ['Amount',   `Γé╣${fee.amount.toLocaleString('en-IN')}`],
-              ['Paid',     `Γé╣${(fee.paidAmount ?? 0).toLocaleString('en-IN')}`],
+              ['Amount',   `₹${fee.amount.toLocaleString('en-IN')}`],
+              ['Paid',     `₹${(fee.paidAmount ?? 0).toLocaleString('en-IN')}`],
             ].map(([label, val]) => (
               <div key={label}>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>{label}</div>
@@ -187,10 +187,10 @@ export default function FeeDetailPage({ params }: PageProps) {
                   padding: '10px 0', borderBottom: '1px solid var(--border)',
                 }}>
                   <div>
-                    <div style={{ fontWeight: 500 }}>Γé╣{p.amount.toLocaleString('en-IN')}</div>
+                    <div style={{ fontWeight: 500 }}>₹{p.amount.toLocaleString('en-IN')}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                       {MODE_LABELS[p.mode] ?? p.mode}
-                      {p.receiptNo ? ` ┬╖ ${p.receiptNo}` : ''}
+                      {p.receiptNo ? ` · ${p.receiptNo}` : ''}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -218,7 +218,7 @@ export default function FeeDetailPage({ params }: PageProps) {
                 disabled={markingPaid}
               >
                 <span className="material-symbols-rounded filled icon-sm">check_circle</span>
-                {markingPaid ? 'ProcessingΓÇª' : 'Mark Paid & Generate Invoice'}
+                {markingPaid ? 'Processing…' : 'Mark Paid & Generate Invoice'}
               </button>
             )}
             <Link href="/invoices" className="btn btn-outline">

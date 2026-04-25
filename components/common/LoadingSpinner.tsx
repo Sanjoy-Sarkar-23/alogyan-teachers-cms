@@ -1,9 +1,24 @@
 'use client';
 
-export function LoadingSpinner() {
+interface LoadingSpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
+  message?: string;
+  className?: string;
+}
+
+const sizeClasses = {
+  sm: 'text-xl',
+  md: 'text-4xl',
+  lg: 'text-6xl',
+};
+
+export function LoadingSpinner({ size = 'md', message, className = '' }: LoadingSpinnerProps) {
   return (
-    <div className="flex items-center justify-center min-h-[200px]">
-      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+    <div className={`flex flex-col items-center justify-center min-h-[400px] gap-4 ${className}`}>
+      <span className={`material-symbols-rounded animate-spin ${sizeClasses[size]}`}>
+        autorenew
+      </span>
+      {message && <p className="text-muted-foreground">{message}</p>}
     </div>
   );
 }
