@@ -6,12 +6,15 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import type { FeeRecord } from '@/types';
 import Link from 'next/link';
+import { LoadingSpinner, StatusBadge, PageHeader, EmptyState, KPICard, FilterChips } from '@/components/common';
+
+type FeeFilter = 'all' | 'paid' | 'pending' | 'overdue';
 
 export default function FeesPage() {
   const [fees, setFees] = useState<FeeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
+  const [filter, setFilter] = useState<FeeFilter>('all');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => setTeacherId(u?.uid ?? null));
@@ -45,61 +48,46 @@ export default function FeesPage() {
     overdue: fees.filter(f => f.status === 'overdue').reduce((a, f) => a + (f.amount ?? 0), 0),
   };
 
-  const statusBadge = (s: string) => {
-    const cls = s === 'paid' ? 'badge-success' : s === 'pending' ? 'badge-warning' : 'badge-error';
-    return <span className={`badge ${cls}`}>{s}</span>;
-  };
+  if (loading) return <LoadingSpinner />;
 
-  if (loading) return <div className="empty-state"><span className="material-symbols-rounded" style={{ fontSize: 36 }}>autorenew</span></div>;
+  const filterOptions: FeeFilter[] = ['all', 'paid', 'pending', 'overdue'];
 
   return (
-    <div>
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><h1>Fees</h1><p>Track and manage fee collections</p></div>
+    <div className="p-6">
+      <PageHeader 
+        title="Fees" 
+        subtitle="Track and manage fee collections"
+        action={
           <Link href="/fees/new" className="btn btn-primary">
             <span className="material-symbols-rounded icon-sm">add</span>
             Record Payment
           </Link>
-        </div>
+        }
+      />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <KPICard label="Total Expected" value={`₹${summary.total.toLocaleString('en-IN')}`} />
+        <KPICard label="Collected" value={`₹${summary.collected.toLocaleString('en-IN')}`} color="success" />
+        <KPICard label="Pending" value={`₹${summary.pending.toLocaleString('en-IN')}`} color="warning" />
+        <KPICard label="Overdue" value={`₹${summary.overdue.toLocaleString('en-IN')}`} color="danger" />
       </div>
 
-      {/* Summary KPIs */}
-      <div className="kpi-grid" style={{ marginBottom: 20 }}>
-        <div className="kpi-card">
-          <div className="kpi-label">Total Expected</div>
-          <div className="kpi-value">₹{summary.total.toLocaleString('en-IN')}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Collected</div>
-          <div className="kpi-value" style={{ color: 'var(--success)' }}>₹{summary.collected.toLocaleString('en-IN')}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Pending</div>
-          <div className="kpi-value" style={{ color: 'var(--warning)' }}>₹{summary.pending.toLocaleString('en-IN')}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Overdue</div>
-          <div className="kpi-value" style={{ color: 'var(--danger)' }}>₹{summary.overdue.toLocaleString('en-IN')}</div>
-        </div>
-      </div>
-
-      {/* Filter Buttons */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {(['all', 'paid', 'pending', 'overdue'] as const).map(f => (
-          <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFilter(f)}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
+      <FilterChips
+        options={filterOptions}
+        value={filter}
+        onChange={setFilter}
+        formatLabel={(f) => f.charAt(0).toUpperCase() + f.slice(1)}
+        className="mb-4"
+      />
 
       {filtered.length === 0 ? (
-        <div className="card"><div className="empty-state">
-          <span className="material-symbols-rounded">payments</span>
-          <h3>No fee records</h3>
-          <p>Record fee payments to track collections.</p>
-          <Link href="/fees/new" className="btn btn-primary btn-sm">Record Payment</Link>
-        </div></div>
+        <EmptyState 
+          icon="payments"
+          title="No fee records"
+          description="Record fee payments to track collections."
+          href="/fees/new"
+          actionLabel="Record Payment"
+        />
       ) : (
         <div className="table-wrapper">
           <table className="table">
@@ -111,24 +99,22 @@ export default function FeesPage() {
                 <th>Amount</th>
                 <th>Due Date</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(f => (
                 <tr key={f.id}>
-                  <td style={{ fontWeight: 600, fontSize: 13 }}>{f.studentName}</td>
-                  <td style={{ fontSize: 13 }}>{f.batchName}</td>
-                  <td style={{ fontSize: 13 }}>{f.month}</td>
-                  <td style={{ fontWeight: 700, fontSize: 14 }}>₹{f.amount.toLocaleString('en-IN')}</td>
-                  <td style={{ fontSize: 13 }}>{f.dueDateString}</td>
-                  <td>{statusBadge(f.status)}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <Link href={`/fees/${f.id}`} className="btn btn-ghost btn-sm">
-                        <span className="material-symbols-rounded icon-sm">edit</span>
-                      </Link>
-                    </div>
+                  <td className="font-medium">{f.studentName}</td>
+                  <td>{f.batchName}</td>
+                  <td>{f.month}</td>
+                  <td className="font-bold">₹{f.amount.toLocaleString('en-IN')}</td>
+                  <td>{f.dueDateString}</td>
+                  <td><StatusBadge status={f.status} /></td>
+                  <td className="text-right">
+                    <Link href={`/fees/${f.id}`} className="btn btn-ghost btn-sm">
+                      <span className="material-symbols-rounded icon-sm">edit</span>
+                    </Link>
                   </td>
                 </tr>
               ))}

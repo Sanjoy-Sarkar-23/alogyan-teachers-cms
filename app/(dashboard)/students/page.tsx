@@ -1,27 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import type { Student } from '@/types';
 import Link from 'next/link';
+import { LoadingSpinner, StatusBadge, PageHeader, EmptyState, SearchInput, FilterChips, Dialog } from '@/components/common';
+import { getInitials, formatDate } from '@/lib/utils';
+import { toastSuccess, toastError } from '@/lib/toast';
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'alumni';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
-  const [filter, setFilter]     = useState<FilterStatus>('all');
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<FilterStatus>('all');
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [isDialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => {
-      setTeacherId(u?.uid ?? null);
-    });
+    const unsub = onAuthStateChanged(auth, u => setTeacherId(u?.uid ?? null));
     return unsub;
   }, []);
 
@@ -50,32 +50,18 @@ export default function StudentsPage() {
     return matchesSearch && matchesFilter;
   });
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      active: 'badge-success', inactive: 'badge-neutral', alumni: 'badge-warning'
-    };
-    return <span className={`badge ${map[status] ?? 'badge-neutral'}`}>{status}</span>;
-  };
-
-  const initials = (name: string) =>
-    name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-
   const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!teacherId) {
-      alert('You must be logged in to add a student.');
-      return;
-    }
+    if (!teacherId) return;
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const phone = formData.get('phone') as string;
 
     try {
       await addDoc(collection(db, 'students'), {
         teacherId,
         name: formData.get('name') as string,
-        phone: phone,
+        phone: formData.get('phone') as string,
         email: formData.get('email') as string || '',
         parentName: formData.get('parentName') as string || '',
         parentPhone: formData.get('parentPhone') as string || '',
@@ -86,154 +72,132 @@ export default function StudentsPage() {
         updatedAt: serverTimestamp()
       });
 
-      setDrawerOpen(false);
+      setDialogOpen(false);
       form.reset();
       fetchStudents();
-      alert(`Student ${formData.get('name')} added successfully!`);
-    } catch (error: any) {
-      console.error('Error adding student:', error);
-      alert('Failed to add student: ' + error.message);
+      toastSuccess('Student added successfully!');
+    } catch (error) {
+      toastError(`Failed to add student: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  if (loading) return (
-    <div className="empty-state">
-      <span className="material-symbols-rounded" style={{ fontSize: 36, animation: 'spin 1s linear infinite' }}>autorenew</span>
-    </div>
-  );
+  if (loading) return <LoadingSpinner />;
+
+  const filterOptions: FilterStatus[] = ['all', 'active', 'inactive', 'alumni'];
 
   return (
-    <div>
-      {/* HEADER */}
-      <div className="page-header flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1>Students</h1>
-          <p>{students.length} total students</p>
-        </div>
-        <button className="btn btn-primary" style={{ padding: '12px 24px', fontSize: 16 }} onClick={() => setDrawerOpen(true)}>
-          <span className="material-symbols-rounded">person_add</span>
-          Add Student
-        </button>
-      </div>
+    <div className="p-6">
+      <PageHeader 
+        title="Students" 
+        subtitle={`${students.length} total students`}
+        action={
+          <button className="btn btn-primary" onClick={() => setDialogOpen(true)}>
+            <span className="material-symbols-rounded">person_add</span>
+            Add Student
+          </button>
+        }
+      />
 
-      {/* SEARCH AND FILTER HEADERS */}
-      <div className="card" style={{ marginBottom: 24, padding: '16px' }}>
-        <div className="flex gap-4 items-center flex-wrap">
-          <div style={{ position: 'relative', flex: '1 1 300px' }}>
-            <span className="material-symbols-rounded icon-sm text-disabled" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }}>search</span>
-            <input
-              className="input"
-              style={{ paddingLeft: 40, width: '100%' }}
-              placeholder="Search by name, phone, or ID..."
+      <div className="card p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex-1 min-w-[200px]">
+            <SearchInput
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={setSearch}
+              placeholder="Search by name, phone, or ID..."
             />
           </div>
-          <div className="flex gap-2">
-            {(['all', 'active', 'inactive', 'alumni'] as FilterStatus[]).map(f => (
-              <button
-                key={f}
-                className={`chip ${filter === f ? 'active-filter' : ''}`}
-                style={filter === f ? { background: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary-light)' } : { cursor: 'pointer' }}
-                onClick={() => setFilter(f)}
-              >
-                {f === 'all' ? 'All Status' : `Status: ${f.charAt(0).toUpperCase() + f.slice(1)}`}
-              </button>
-            ))}
-          </div>
+          <FilterChips
+            options={filterOptions}
+            value={filter}
+            onChange={setFilter}
+            formatLabel={(f) => f === 'all' ? 'All Status' : f.charAt(0).toUpperCase() + f.slice(1)}
+          />
         </div>
       </div>
 
-      {/* BODY */}
       {filtered.length === 0 ? (
-        <div className="card empty-state" style={{ padding: '64px 24px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize: 64, color: 'var(--text-disabled)' }}>group_off</span>
-          <h3 style={{ fontSize: 20, color: 'var(--text-primary)', marginTop: 16 }}>
-            {students.length === 0 ? 'You haven\'t enrolled any students yet.' : 'No results found'}
-          </h3>
-          <p style={{ fontSize: 16, marginTop: 8 }}>
-            {students.length === 0 ? 'Let\'s get started!' : 'Try a different search or filter.'}
-          </p>
-          {students.length === 0 && (
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
-               <span className="material-symbols-rounded text-disabled" style={{ display: 'block', marginBottom: 8 }}>arrow_downward</span>
-               <button className="btn btn-primary btn-lg" onClick={() => setDrawerOpen(true)}>Add Student</button>
-            </div>
-          )}
-        </div>
+        <EmptyState 
+          icon="group_off"
+          title={students.length === 0 ? "No students enrolled" : "No results found"}
+          description={students.length === 0 ? "Add your first student to get started." : "Try a different search or filter."}
+          action={students.length === 0 ? (
+            <button className="btn btn-primary" onClick={() => setDialogOpen(true)}>Add Student</button>
+          ) : undefined}
+        />
       ) : (
         <>
-          {/* DESKTOP TABLE */}
-          <div className="table-wrapper desktop-only">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Student Info</th>
-                  <th>ID</th>
-                  <th>Batch</th>
-                  <th>Joining Date</th>
-                  <th>Phone No.</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="avatar avatar-md">{initials(s.name)}</div>
-                        <div>
-                          <div className="font-semibold text-base">{s.name}</div>
-                          {s.email && <div className="text-sm text-secondary">{s.email}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-secondary">#{s.id.slice(0, 6).toUpperCase()}</td>
-                    <td>
-                      <span className="chip">{s.batchIds?.length ? `${s.batchIds.length} Batch(es)` : 'Unassigned'}</span>
-                    </td>
-                    <td className="text-secondary">
-                      {s.enrollmentDate ? new Date(s.enrollmentDate.seconds * 1000).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="font-medium">{s.phone}</td>
-                    <td>{statusBadge(s.status)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/students/${s.id}`} className="btn btn-ghost btn-icon">
-                          <span className="material-symbols-rounded icon-sm">visibility</span>
-                        </Link>
-                        <button className="btn btn-ghost btn-icon">
-                          <span className="material-symbols-rounded icon-sm">more_vert</span>
-                        </button>
-                      </div>
-                    </td>
+          <div className="hidden md:block">
+            <div className="table-wrapper">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Student Info</th>
+                    <th>ID</th>
+                    <th>Batch</th>
+                    <th>Joining Date</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="avatar avatar-md">{getInitials(s.name)}</div>
+                          <div>
+                            <p className="font-semibold">{s.name}</p>
+                            {s.email && <p className="text-sm text-muted-foreground">{s.email}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-muted-foreground">#{s.id.slice(0, 6).toUpperCase()}</td>
+                      <td>
+                        <span className="chip">{s.batchIds?.length ? `${s.batchIds.length} Batch(es)` : 'Unassigned'}</span>
+                      </td>
+                      <td className="text-muted-foreground">{formatDate(s.enrollmentDate)}</td>
+                      <td className="font-medium">{s.phone}</td>
+                      <td><StatusBadge status={s.status} /></td>
+                      <td className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/students/${s.id}`} className="btn btn-ghost btn-icon">
+                            <span className="material-symbols-rounded icon-sm">visibility</span>
+                          </Link>
+                          <button className="btn btn-ghost btn-icon">
+                            <span className="material-symbols-rounded icon-sm">more_vert</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* MOBILE CARD LIST */}
-          <div className="mobile-only flex flex-col gap-4">
+          <div className="md:hidden space-y-4">
             {filtered.map(s => (
-              <div key={s.id} className="card p-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
+              <div key={s.id} className="card p-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="avatar avatar-md">{initials(s.name)}</div>
+                    <div className="avatar avatar-md">{getInitials(s.name)}</div>
                     <div>
-                      <div className="font-semibold text-base">{s.name}</div>
-                      <div className="text-sm text-secondary">{s.batchIds?.length ? `${s.batchIds.length} Batch(es)` : 'Unassigned'}</div>
+                      <p className="font-semibold">{s.name}</p>
+                      <p className="text-sm text-muted-foreground">{s.batchIds?.length ? `${s.batchIds.length} Batch(es)` : 'Unassigned'}</p>
                     </div>
                   </div>
-                  {statusBadge(s.status)}
+                  <StatusBadge status={s.status} />
                 </div>
-                <div className="divider" style={{ margin: 0 }} />
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-secondary font-medium">
-                    {s.phone}
-                  </div>
-                  <a href={`https://wa.me/${s.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">
+                  <p className="text-sm font-medium">{s.phone}</p>
+                  <a 
+                    href={`https://wa.me/${s.phone.replace(/\D/g, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="btn btn-success btn-sm"
+                  >
                     <span className="material-symbols-rounded icon-sm">chat</span>
                     WhatsApp
                   </a>
@@ -244,115 +208,53 @@ export default function StudentsPage() {
         </>
       )}
 
-      {/* SLIDE-OVER DRAWER FOR ADD STUDENT */}
-      {isDrawerOpen && (
-        <div className="drawer-overlay" onClick={() => setDrawerOpen(false)}>
-          <div className="drawer-panel" onClick={e => e.stopPropagation()}>
-            <div className="drawer-header">
-              <h2 style={{ fontSize: 20 }}>Add Student</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => setDrawerOpen(false)}>
-                <span className="material-symbols-rounded">close</span>
-              </button>
-            </div>
-            
-            <div className="drawer-body">
-              <form id="add-student-form" onSubmit={handleAddStudent} className="flex flex-col gap-6">
-                <div>
-                  <h3 className="mb-4" style={{ fontSize: 16 }}>Student Details</h3>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Full Name *</label>
-                    <input required name="name" type="text" className="input" placeholder="e.g. Rahul Sharma" />
-                  </div>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Phone Number *</label>
-                    <input required name="phone" type="tel" className="input" placeholder="(XXX) XXX-XXXX" />
-                  </div>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Email Address</label>
-                    <input name="email" type="email" className="input" placeholder="rahul@example.com" />
-                  </div>
-                </div>
-
-                <div className="divider" style={{ margin: 0 }} />
-
-                <div>
-                  <h3 className="mb-4" style={{ fontSize: 16 }}>Parent Contact</h3>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Parent Name</label>
-                    <input name="parentName" type="text" className="input" placeholder="e.g. Mr. Sharma" />
-                  </div>
-                  <div className="form-group mb-4">
-                    <label className="form-label">Parent Phone</label>
-                    <input name="parentPhone" type="tel" className="input" placeholder="(XXX) XXX-XXXX" />
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            <div className="drawer-footer">
-              <button className="btn btn-ghost" onClick={() => setDrawerOpen(false)}>Cancel</button>
-              <button type="submit" form="add-student-form" className="btn btn-primary" style={{ padding: '10px 24px' }}>Add Student</button>
+      <Dialog
+        open={isDialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="Add Student"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setDialogOpen(false)}>Cancel</button>
+            <button type="submit" form="add-student-form" className="btn btn-primary">Add Student</button>
+          </>
+        }
+      >
+        <form id="add-student-form" onSubmit={handleAddStudent} className="space-y-4">
+          <div>
+            <h4 className="font-semibold mb-3">Student Details</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="form-label">Full Name *</label>
+                <input required name="name" type="text" className="input w-full" placeholder="e.g. Rahul Sharma" />
+              </div>
+              <div>
+                <label className="form-label">Phone Number *</label>
+                <input required name="phone" type="tel" className="input w-full" placeholder="(XXX) XXX-XXXX" />
+              </div>
+              <div>
+                <label className="form-label">Email Address</label>
+                <input name="email" type="email" className="input w-full" placeholder="rahul@example.com" />
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      <style jsx global>{`
-        @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-        
-        .desktop-only { display: block; }
-        .mobile-only { display: none; }
-        
-        @media (max-width: 768px) {
-          .desktop-only { display: none; }
-          .mobile-only { display: flex; }
-        }
+          <hr className="my-4" />
 
-        /* DRAWER STYLES */
-        .drawer-overlay {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 1000;
-          display: flex;
-          justify-content: flex-end;
-          animation: fadeIn 0.2s ease;
-        }
-        .drawer-panel {
-          background: var(--bg-default);
-          width: 100%;
-          max-width: 450px;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          box-shadow: -4px 0 16px rgba(0,0,0,0.1);
-          animation: slideInRight 0.3s ease forwards;
-        }
-        .drawer-header {
-          padding: 20px 24px;
-          border-bottom: 1px solid var(--border);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .drawer-body {
-          padding: 24px;
-          flex: 1;
-          overflow-y: auto;
-        }
-        .drawer-footer {
-          padding: 16px 24px;
-          border-top: 1px solid var(--border);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: var(--bg-hover);
-        }
-        @keyframes slideInRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-      `}</style>
+          <div>
+            <h4 className="font-semibold mb-3">Parent Contact</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="form-label">Parent Name</label>
+                <input name="parentName" type="text" className="input w-full" placeholder="e.g. Mr. Sharma" />
+              </div>
+              <div>
+                <label className="form-label">Parent Phone</label>
+                <input name="parentPhone" type="tel" className="input w-full" placeholder="(XXX) XXX-XXXX" />
+              </div>
+            </div>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }

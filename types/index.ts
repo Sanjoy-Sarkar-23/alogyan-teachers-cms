@@ -34,8 +34,56 @@ export interface Teacher {
   title?: string;           // e.g. "Academic Head"
   photoURL?: string;
   instituteName?: string;
+  logoURL?: string;         // institute logo for invoices
+  signatureURL?: string;    // teacher signature for invoices
   createdAt: Timestamp;
 }
+
+// ============================
+// INSTITUTE / COMPANY PROFILE
+// ============================
+export interface InstituteProfile {
+  teacherId: string;
+  name: string;                 // official institute name
+  tagline?: string;             // e.g. "Empowering future engineers"
+  type?: string;                // "Coaching Centre" | "School" | "Tuition" | etc.
+  registrationNo?: string;      // government / board registration number
+  gstin?: string;               // GST Identification Number (for invoices)
+  pan?: string;                 // PAN number
+
+  // Contact
+  phone: string;
+  altPhone?: string;
+  email: string;
+  website?: string;
+
+  // Address
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pin: string;
+  country: string;
+
+  // Branding (same as Teacher.logoURL — kept in sync)
+  logoURL?: string;
+
+  updatedAt: Timestamp;
+}
+
+// ============================
+// DESIGNATION
+// ============================
+export interface Designation {
+  id: string;                   // Firestore doc id
+  teacherId: string;
+  label: string;                // e.g. "Academic Head"
+  department?: string;          // optional grouping, e.g. "Science"
+  isDefault?: boolean;          // shown as preset, not deletable
+  order: number;                // display order
+  createdAt: Timestamp;
+}
+
 
 // ============================
 // STUDENT
@@ -80,7 +128,7 @@ export interface Batch {
   description?: string;
   studentIds: string[];
   schedule: ScheduleSlot[];
-  feeAmount: number;    // monthly fee in INR
+  monthlyFee: number;    // monthly fee in INR
   status: BatchStatus;
   startDate: Timestamp;
   endDate?: Timestamp;
@@ -114,8 +162,9 @@ export interface StudentAttendance {
 // ============================
 // FEE
 // ============================
-export type FeeStatus = 'paid' | 'pending' | 'partial' | 'overdue';
-export type PaymentMode = 'cash' | 'upi' | 'bank_transfer' | 'cheque';
+export type FeeStatus    = 'paid' | 'pending' | 'partial' | 'overdue';
+export type PaymentMode  = 'cash' | 'upi' | 'bank_transfer' | 'cheque';
+export type PaymentType  = 'monthly' | 'batch' | 'one-time';  // new
 
 export interface FeeRecord {
   id: string;
@@ -124,10 +173,12 @@ export interface FeeRecord {
   studentName: string;
   batchName: string;
   batchId: string;
-  month: string;         // "2026-03"
+  month: string;               // "2026-03" (or "—" for one-time)
   amount: number;
   paidAmount: number;
   status: FeeStatus;
+  paymentType: PaymentType;    // monthly | batch | one-time
+  oneTimeDescription?: string; // e.g. "Internship Fee"
   dueDate: Timestamp;
   dueDateString: string;
   payments: Payment[];
@@ -141,6 +192,38 @@ export interface Payment {
   paidAt: Timestamp;
   receiptNo?: string;
   notes?: string;
+  invoiceId?: string;   // set after invoice is generated
+  invoiceNo?: string;   // e.g. "INV-2026-00042"
+}
+
+// ============================
+// INVOICE
+// ============================
+export type InvoiceStatus = 'issued' | 'cancelled';
+
+export interface Invoice {
+  id: string;
+  teacherId: string;
+  feeRecordId: string;
+  invoiceNo: string;          // "INV-2026-00042"
+  studentId: string;
+  studentName: string;
+  studentEmail?: string;      // stored at generation time
+  studentPhone?: string;
+  batchId: string;
+  batchName: string;
+  month: string;              // "April 2026" or description for one-time
+  amount: number;
+  paidAmount: number;
+  paymentType: PaymentType;   // monthly | batch | one-time
+  oneTimeDescription?: string;
+  paymentMode: PaymentMode;
+  paidAt: Timestamp;
+  status: InvoiceStatus;
+  notes?: string;
+  teacherEmail?: string;      // stored at generation time
+  teacherPhone?: string;
+  createdAt: Timestamp;
 }
 
 // ============================

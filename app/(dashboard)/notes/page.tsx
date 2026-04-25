@@ -139,14 +139,14 @@ export default function NotesPage() {
     setSaving(true);
     try {
       let fileUrl = editingNote?.fileUrl;
-      let fileType = modalType;
+      let fileType: NoteType = modalType;
       let fileSize = (editingNote as any)?.fileSize;
 
       if (uploadFile) {
         const storageRef = ref(storage, `notes/${teacherId}/${Date.now()}_${uploadFile.name}`);
         await uploadBytes(storageRef, uploadFile);
         fileUrl = await getDownloadURL(storageRef);
-        fileType = uploadFile.type;
+        fileType = uploadFile.type as NoteType;
         fileSize = uploadFile.size;
       }
 
