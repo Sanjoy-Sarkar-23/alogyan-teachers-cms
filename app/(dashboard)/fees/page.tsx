@@ -50,7 +50,11 @@ export default function FeesPage() {
     return <span className={`badge ${cls}`}>{s}</span>;
   };
 
-  if (loading) return <div className="empty-state"><span className="material-symbols-rounded" style={{ fontSize: 36 }}>autorenew</span></div>;
+  if (loading) return (
+    <div className="empty-state">
+      <span className="material-symbols-rounded" style={{ fontSize: 36 }}>autorenew</span>
+    </div>
+  );
 
   return (
     <div>
@@ -87,19 +91,25 @@ export default function FeesPage() {
       {/* Filter Buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {(['all', 'paid', 'pending', 'overdue'] as const).map(f => (
-          <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFilter(f)}>
+          <button
+            key={f}
+            className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setFilter(f)}
+          >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="card"><div className="empty-state">
-          <span className="material-symbols-rounded">payments</span>
-          <h3>No fee records</h3>
-          <p>Record fee payments to track collections.</p>
-          <Link href="/fees/new" className="btn btn-primary btn-sm">Record Payment</Link>
-        </div></div>
+        <div className="card">
+          <div className="empty-state">
+            <span className="material-symbols-rounded">payments</span>
+            <h3>No fee records</h3>
+            <p>Record fee payments to track collections.</p>
+            <Link href="/fees/new" className="btn btn-primary btn-sm">Record Payment</Link>
+          </div>
+        </div>
       ) : (
         <div className="table-wrapper">
           <table className="table">
