@@ -146,7 +146,7 @@ export default function NotesPage() {
         const storageRef = ref(storage, `notes/${teacherId}/${Date.now()}_${uploadFile.name}`);
         await uploadBytes(storageRef, uploadFile);
         fileUrl = await getDownloadURL(storageRef);
-        fileType = uploadFile.type;
+        fileType = uploadFile.type as NoteType;
         fileSize = uploadFile.size;
       }
 
