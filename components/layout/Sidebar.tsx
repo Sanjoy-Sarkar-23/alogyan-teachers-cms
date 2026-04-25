@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/batches',       icon: 'class',             label: 'Batches' },
   { href: '/attendance',    icon: 'fact_check',        label: 'Attendance' },
   { href: '/fees',          icon: 'payments',          label: 'Fees' },
+  { href: '/invoices',      icon: 'receipt_long',      label: 'Invoices' },
   { href: '/notes',         icon: 'folder_open',       label: 'Notes' },
   { href: '/tests',         icon: 'quiz',              label: 'Tests' },
   { href: '/reports',       icon: 'bar_chart',         label: 'Reports' },
@@ -37,7 +38,6 @@ export default function Sidebar() {
         </div>
         <div>
           <div className={styles.logoName}>Alogyan</div>
-          <div className={styles.logoSub}>Teacher CMS</div>
         </div>
       </div>
 
