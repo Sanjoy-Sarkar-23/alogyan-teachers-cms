@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
           issueDate,
           dateOfCompletion,
           verifyToken,
-          verifyUrl: `${appUrl}/certificates/verify/${verifyToken}`,
+          verifyUrl: `${appUrl}/verify/${verifyToken}`,
           status: 'active',
           isRevoked: false,
           createdAt: now,
