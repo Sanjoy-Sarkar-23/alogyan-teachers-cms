@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
       return current + 1;
     });
 
-    const appUrl ="https://alogyan.com";
+    const appUrl ="https://academy.alogyan.com";
     const now = FieldValue.serverTimestamp();
     const created = issuableStudentIds.map((studentId, index) => {
       const certificateId = `ALP-CERT-${year}-${String(firstSequence + index).padStart(6, '0')}`;
