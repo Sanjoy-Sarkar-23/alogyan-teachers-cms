@@ -37,6 +37,7 @@ export async function GET(
       totalDuration: certificate.totalDuration,
       issueDate: certificate.issueDate,
       dateOfCompletion: certificate.dateOfCompletion,
+      verifyUrl: certificate.verifyUrl,
       status: certificate.isRevoked ? 'revoked' : 'valid',
     });
   } catch (error) {

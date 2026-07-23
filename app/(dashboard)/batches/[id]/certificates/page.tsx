@@ -6,9 +6,17 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { useEffect, useMemo, useState } from 'react';
 
 import { LoadingSpinner, PageHeader } from '@/components/common';
+import Certificate from '@/components/Certificate';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api-client';
 import { db } from '@/lib/firebase';
+import {
+  exportCertificatePdf,
+  exportCertificatePng,
+  exportCertificatesPdf,
+  exportCertificatesZip,
+  type CertificateExportData,
+} from '@/lib/certificate-export';
 import type { Batch, Student } from '@/types';
 
 type Recipient = { studentId: string; grade: string };
@@ -17,6 +25,13 @@ type BulkResult = {
     certificateId: string;
     studentId: string;
     studentName: string;
+    programName: string;
+    grade: string;
+    startDate: string;
+    endDate: string;
+    totalDuration: string;
+    issueDate: string;
+    dateOfCompletion: string;
     verifyUrl: string;
   }>;
   skipped: Array<{ studentId: string; studentName: string; reason: string }>;
@@ -38,6 +53,10 @@ export default function BatchCertificatesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<BulkResult | null>(null);
+  const [issued, setIssued] = useState<CertificateExportData[]>([]);
+  const [issuedLoading, setIssuedLoading] = useState(true);
+  const [issuedSelected, setIssuedSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({
@@ -92,6 +111,24 @@ export default function BatchCertificatesPage() {
     load();
   }, [authLoading, id, user]);
 
+  useEffect(() => {
+    if (!user || !batch) return;
+    let active = true;
+    async function loadIssued() {
+      setIssuedLoading(true);
+      const response = await api.get<CertificateExportData[]>('/certificates', { batchId: id });
+      if (active && response.success && response.data) {
+        setIssued(response.data);
+        setIssuedSelected(new Set(response.data.map((certificate) => certificate.certificateId)));
+      }
+      if (active) setIssuedLoading(false);
+    }
+    loadIssued();
+    return () => {
+      active = false;
+    };
+  }, [batch, id, user]);
+
   const visibleStudents = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return students;
@@ -102,6 +139,10 @@ export default function BatchCertificatesPage() {
         student.phone?.includes(term)
     );
   }, [search, students]);
+  const previewStudent = students.find((student) => selected.has(student.id));
+  const selectedIssuedCertificates = issued.filter((certificate) =>
+    issuedSelected.has(certificate.certificateId)
+  );
 
   function updateForm(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -159,12 +200,35 @@ export default function BatchCertificatesPage() {
         return;
       }
       setResult(response.data);
+      setIssued((current) => {
+        const merged = new Map(current.map((certificate) => [certificate.certificateId, certificate]));
+        response.data!.created.forEach((certificate) => merged.set(certificate.certificateId, certificate));
+        return [...merged.values()];
+      });
+      setIssuedSelected((current) => {
+        const next = new Set(current);
+        response.data!.created.forEach((certificate) => next.add(certificate.certificateId));
+        return next;
+      });
       setIdempotencyKey(crypto.randomUUID());
     } catch (submitError) {
       console.error(submitError);
       setError('Certificate creation failed. Check your connection and try again.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function runExport(label: string, action: () => Promise<void>) {
+    setError('');
+    setExporting(label);
+    try {
+      await action();
+    } catch (exportError) {
+      console.error(exportError);
+      setError('Export failed. Please retry with a smaller group.');
+    } finally {
+      setExporting('');
     }
   }
 
@@ -189,6 +253,7 @@ export default function BatchCertificatesPage() {
       )}
 
       {!batch ? null : (
+        <>
         <form onSubmit={issueCertificates} className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
           <section className="card overflow-hidden">
             <div className="border-b p-4">
@@ -357,6 +422,29 @@ export default function BatchCertificatesPage() {
               </button>
             </section>
 
+            {previewStudent && (
+              <section className="card p-4">
+                <div className="mb-3">
+                  <h2 className="text-base font-semibold">Certificate preview</h2>
+                  <p className="text-sm">Previewing the first selected student.</p>
+                </div>
+                <div className="overflow-hidden rounded-lg border">
+                  <Certificate
+                    certificateId="ALP-CERT-PREVIEW"
+                    studentName={previewStudent.name}
+                    programName={form.programName || batch.name}
+                    grade={grades[previewStudent.id] || form.defaultGrade}
+                    startDate={form.startDate}
+                    endDate={form.endDate}
+                    totalDuration={form.totalDuration}
+                    issueDate={form.issueDate}
+                    dateOfCompletion={form.dateOfCompletion}
+                    verifyUrl="/certificates/verify/preview"
+                  />
+                </div>
+              </section>
+            )}
+
             {result && (
               <section className="card p-4" aria-live="polite">
                 <h2 className="text-base font-semibold text-green-700">Bulk issue complete</h2>
@@ -365,18 +453,91 @@ export default function BatchCertificatesPage() {
                   {result.replayed ? ' · previous result restored' : ''}
                 </p>
                 {result.created.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm justify-center"
+                      disabled={!!exporting}
+                      onClick={() =>
+                        runExport('pdf', () => exportCertificatesPdf(result.created as CertificateExportData[]))
+                      }
+                    >
+                      <span className="material-symbols-rounded icon-sm">picture_as_pdf</span>
+                      {exporting === 'pdf' ? 'Building…' : 'Bulk PDF'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm justify-center"
+                      disabled={!!exporting}
+                      onClick={() =>
+                        runExport('png-zip', () =>
+                          exportCertificatesZip(result.created as CertificateExportData[], 'png')
+                        )
+                      }
+                    >
+                      <span className="material-symbols-rounded icon-sm">folder_zip</span>
+                      {exporting === 'png-zip' ? 'Building…' : 'PNG ZIP'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm justify-center"
+                      disabled={!!exporting}
+                      onClick={() =>
+                        runExport('pdf-zip', () =>
+                          exportCertificatesZip(result.created as CertificateExportData[], 'pdf')
+                        )
+                      }
+                    >
+                      <span className="material-symbols-rounded icon-sm">folder_zip</span>
+                      {exporting === 'pdf-zip' ? 'Building…' : 'PDF ZIP'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm justify-center"
+                      disabled={!!exporting}
+                      onClick={() =>
+                        runExport('complete-zip', () =>
+                          exportCertificatesZip(result.created as CertificateExportData[], 'both')
+                        )
+                      }
+                    >
+                      <span className="material-symbols-rounded icon-sm">archive</span>
+                      {exporting === 'complete-zip' ? 'Building…' : 'PNG + PDF ZIP'}
+                    </button>
+                  </div>
+                )}
+                {result.created.length > 0 && (
                   <div className="mt-3 max-h-64 space-y-2 overflow-auto">
                     {result.created.map((certificate) => (
                       <div key={certificate.certificateId} className="rounded-md border p-2 text-sm">
-                        <div className="font-medium">{certificate.studentName}</div>
-                        <a
-                          className="text-primary underline"
-                          href={certificate.verifyUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {certificate.certificateId}
-                        </a>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-medium">{certificate.studentName}</div>
+                            <a className="text-primary underline" href={certificate.verifyUrl} target="_blank" rel="noreferrer">
+                              {certificate.certificateId}
+                            </a>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              aria-label={`Download PDF for ${certificate.studentName}`}
+                              disabled={!!exporting}
+                              onClick={() => runExport(certificate.certificateId, () => exportCertificatePdf(certificate))}
+                            >
+                              <span className="material-symbols-rounded icon-sm">picture_as_pdf</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              aria-label={`Download PNG for ${certificate.studentName}`}
+                              disabled={!!exporting}
+                              onClick={() => runExport(certificate.certificateId, () => exportCertificatePng(certificate))}
+                            >
+                              <span className="material-symbols-rounded icon-sm">image</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -385,6 +546,133 @@ export default function BatchCertificatesPage() {
             )}
           </aside>
         </form>
+        <section className="card mt-6 p-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+            <div>
+              <h2 className="text-base font-semibold">Issued certificates</h2>
+              <p className="text-sm">
+                {issuedLoading
+                  ? 'Loading saved certificates…'
+                  : `${issued.length} saved · ${selectedIssuedCertificates.length} selected`}
+              </p>
+            </div>
+            {issued.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={!!exporting || selectedIssuedCertificates.length === 0}
+                  onClick={() =>
+                    runExport('saved-pdf', () => exportCertificatesPdf(selectedIssuedCertificates))
+                  }
+                >
+                  <span className="material-symbols-rounded icon-sm">picture_as_pdf</span>
+                  Bulk PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={!!exporting || selectedIssuedCertificates.length === 0}
+                  onClick={() =>
+                    runExport('saved-png-zip', () =>
+                      exportCertificatesZip(selectedIssuedCertificates, 'png')
+                    )
+                  }
+                >
+                  PNG ZIP
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={!!exporting || selectedIssuedCertificates.length === 0}
+                  onClick={() =>
+                    runExport('saved-pdf-zip', () =>
+                      exportCertificatesZip(selectedIssuedCertificates, 'pdf')
+                    )
+                  }
+                >
+                  PDF ZIP
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={!!exporting || selectedIssuedCertificates.length === 0}
+                  onClick={() =>
+                    runExport('saved-both-zip', () =>
+                      exportCertificatesZip(selectedIssuedCertificates, 'both')
+                    )
+                  }
+                >
+                  PNG + PDF ZIP
+                </button>
+              </div>
+            )}
+          </div>
+
+          {issuedLoading ? (
+            <div className="p-6"><LoadingSpinner /></div>
+          ) : issued.length === 0 ? (
+            <p className="p-6 text-center text-sm">No certificates have been issued for this batch yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all issued certificates"
+                        checked={issuedSelected.size === issued.length}
+                        onChange={() =>
+                          setIssuedSelected(
+                            issuedSelected.size === issued.length
+                              ? new Set()
+                              : new Set(issued.map((certificate) => certificate.certificateId))
+                          )
+                        }
+                      />
+                    </th>
+                    <th>Student</th>
+                    <th>Certificate</th>
+                    <th>Issued</th>
+                    <th>Downloads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {issued.map((certificate) => (
+                    <tr key={certificate.certificateId}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select certificate for ${certificate.studentName}`}
+                          checked={issuedSelected.has(certificate.certificateId)}
+                          onChange={() =>
+                            setIssuedSelected((current) => {
+                              const next = new Set(current);
+                              if (next.has(certificate.certificateId)) next.delete(certificate.certificateId);
+                              else next.add(certificate.certificateId);
+                              return next;
+                            })
+                          }
+                        />
+                      </td>
+                      <td><div className="font-medium">{certificate.studentName}</div><div className="text-sm text-gray-500">{certificate.programName}</div></td>
+                      <td><a className="text-primary underline" href={certificate.verifyUrl} target="_blank" rel="noreferrer">{certificate.certificateId}</a></td>
+                      <td>{certificate.issueDate || '—'}</td>
+                      <td>
+                        <div className="flex gap-1">
+                          <button type="button" className="btn btn-outline btn-sm" disabled={!!exporting} onClick={() => runExport(`saved-${certificate.certificateId}`, () => exportCertificatePdf(certificate))}>PDF</button>
+                          <button type="button" className="btn btn-outline btn-sm" disabled={!!exporting} onClick={() => runExport(`saved-${certificate.certificateId}`, () => exportCertificatePng(certificate))}>PNG</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        </>
       )}
     </div>
   );

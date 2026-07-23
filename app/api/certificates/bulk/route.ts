@@ -253,6 +253,13 @@ export async function POST(req: NextRequest) {
         certificateId: data.certificateId,
         studentId: data.studentId,
         studentName: data.studentName,
+        programName: data.programName,
+        grade: data.grade,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        totalDuration: data.totalDuration,
+        issueDate: data.issueDate,
+        dateOfCompletion: data.dateOfCompletion,
         verifyUrl: data.verifyUrl,
       })),
       skipped: studentIds

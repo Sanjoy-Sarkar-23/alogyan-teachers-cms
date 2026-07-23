@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { api } from '@/lib/api-client';
+import Certificate from '@/components/Certificate';
+import { exportCertificatePdf, exportCertificatePng } from '@/lib/certificate-export';
 
 type VerificationResult = {
   certificateId: string;
@@ -15,6 +17,7 @@ type VerificationResult = {
   totalDuration: string;
   issueDate: string;
   dateOfCompletion: string;
+  verifyUrl: string;
   status: 'valid' | 'revoked';
 };
 
@@ -75,6 +78,19 @@ export default function VerifyCertificatePage() {
                 {certificate.status === 'valid' ? 'Valid certificate' : 'Certificate revoked'}
               </div>
               <div className="mt-1 text-sm">{certificate.certificateId}</div>
+            </div>
+            <div className="mb-6 overflow-hidden rounded-xl border">
+              <Certificate {...certificate} />
+            </div>
+            <div className="mb-6 flex flex-wrap justify-center gap-2">
+              <button className="btn btn-primary" onClick={() => exportCertificatePdf(certificate)}>
+                <span className="material-symbols-rounded icon-sm">picture_as_pdf</span>
+                Download PDF
+              </button>
+              <button className="btn btn-outline" onClick={() => exportCertificatePng(certificate)}>
+                <span className="material-symbols-rounded icon-sm">image</span>
+                Download PNG
+              </button>
             </div>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[
