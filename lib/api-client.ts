@@ -40,6 +40,8 @@ export interface ApiResponse<T = unknown> {
     pageSize?: number;
     total?: number;
     totalPages?: number;
+    nextCursor?: string;
+    hasMore?: boolean;
   };
   timestamp?: string;
   error?: {
@@ -108,7 +110,11 @@ export const api = {
    * GET request
    */
   async get<T>(endpoint: string, params?: Record<string, unknown>): Promise<ApiResponse<T>> {
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
+    const base =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const url = new URL(`${API_BASE_URL}${endpoint}`, base);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -237,4 +243,3 @@ export const graphql = {
 
 // Export constants
 export { API_BASE_URL, GRAPHQL_ENDPOINT };
-

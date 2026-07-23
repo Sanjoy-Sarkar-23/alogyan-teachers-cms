@@ -3,10 +3,11 @@
  * React Query hooks for data fetching, caching, and mutations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import type {
   AnnouncementChannel,
+  Batch,
   BatchStatus,
   NoteType,
   PaymentMode,
@@ -106,10 +107,16 @@ export interface UpdateStudentData extends Partial<CreateStudentData> {
 export interface CreateBatchData {
   name: string;
   subject: string;
+  grade?: string;
   description?: string;
   studentIds?: string[];
   schedule: ScheduleSlot[];
-  feeAmount: number;
+  feeAmount?: number;
+  monthlyFee?: number;
+  capacity?: number;
+  room?: string;
+  deliveryMode?: 'offline' | 'online' | 'hybrid';
+  meetingLink?: string;
   status?: BatchStatus;
   startDate: string;
   endDate?: string;
@@ -251,24 +258,54 @@ export function useBulkImportStudents() {
 // ============================
 
 export interface BatchFilters {
-  page?: number;
   pageSize?: number;
-  status?: 'active' | 'paused' | 'closed' | 'all';
+  status?: BatchStatus | 'all';
   subject?: string;
+  grade?: string;
+  search?: string;
 }
 
 export function useBatches(filters: BatchFilters = {}) {
   return useQuery({
     queryKey: queryKeys.batches.list(filters),
     queryFn: () => api.get('/batches', filters as Record<string, unknown>),
+    staleTime: 60_000,
+  });
+}
+
+export function useInfiniteBatches(filters: BatchFilters = {}, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.batches.list(filters),
+    queryFn: ({ pageParam }) =>
+      api.get<Batch[]>('/batches', {
+        ...filters,
+        cursor: pageParam || undefined,
+      } as Record<string, unknown>),
+    initialPageParam: '',
+    getNextPageParam: (lastPage) =>
+      lastPage.meta?.hasMore ? lastPage.meta.nextCursor : undefined,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    enabled,
+  });
+}
+
+export function useBatchStats(enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.batches.all, 'stats'],
+    queryFn: () => api.get<{ total: number; active: number; upcoming: number; completed: number }>('/batches/stats'),
+    staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
+    enabled,
   });
 }
 
 export function useBatch(batchId: string) {
   return useQuery({
     queryKey: queryKeys.batches.detail(batchId),
-    queryFn: () => api.get(`/batches/${batchId}`),
+    queryFn: () => api.get<Batch>(`/batches/${batchId}`),
     enabled: !!batchId,
+    staleTime: 2 * 60_000,
   });
 }
 

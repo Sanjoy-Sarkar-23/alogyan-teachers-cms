@@ -15,6 +15,8 @@ export interface ApiResponse<T = unknown> {
     pageSize?: number;
     total?: number;
     totalPages?: number;
+    nextCursor?: string;
+    hasMore?: boolean;
   };
   timestamp?: string;
   error?: ApiError;

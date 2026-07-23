@@ -125,13 +125,47 @@ export interface Batch {
   teacherId: string;
   name: string;         // e.g. "Class 10 Maths"
   subject: string;
+  grade?: string;
+  normalizedName?: string;
   description?: string;
   studentIds: string[];
+  studentCount?: number;
+  capacity?: number;
   schedule: ScheduleSlot[];
   monthlyFee: number;    // monthly fee in INR
+  room?: string;
+  deliveryMode?: 'offline' | 'online' | 'hybrid';
+  meetingLink?: string;
   status: BatchStatus;
   startDate: Timestamp;
   endDate?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============================
+// CERTIFICATES
+// ============================
+export type CertificateStatus = 'active' | 'revoked';
+
+export interface Certificate {
+  id: string;
+  certificateId: string;
+  teacherId: string;
+  batchId: string;
+  studentId: string;
+  studentName: string;
+  programName: string;
+  grade: string;
+  startDate: string;
+  endDate: string;
+  totalDuration: string;
+  issueDate: string;
+  dateOfCompletion: string;
+  verifyToken: string;
+  verifyUrl: string;
+  status: CertificateStatus;
+  isRevoked: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

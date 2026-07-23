@@ -110,8 +110,17 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
-NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost:3001/graphql
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_GRAPHQL_ENDPOINT=/api/graphql
+
+# Server-only Firebase Admin credentials
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+
+# Server-only, random secret of at least 32 characters
+CERT_SECRET_KEY=
 ```
 
 ## Running the Project
@@ -127,6 +136,17 @@ npm run dev:all
 npm run dev:server  # Backend (port 3001)
 npm run dev:client  # Frontend (port 3000)
 ```
+
+### Batch query indexes
+
+The optimized Batch section uses cursor pagination and server-side filters. Deploy
+the required composite indexes before enabling it in production:
+
+```bash
+firebase deploy --only firestore:indexes
+```
+
+The index definitions are stored in `firestore.indexes.json`.
 
 ## Design System
 
